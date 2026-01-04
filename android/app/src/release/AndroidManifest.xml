@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- En release, NO permitir tráfico HTTP sin cifrar (solo HTTPS) -->
+    <application
+        android:usesCleartextTraffic="false" />
+</manifest>
+

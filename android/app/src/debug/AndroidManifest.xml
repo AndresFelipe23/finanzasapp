@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- En debug, permitir tráfico HTTP para desarrollo local -->
+    <application
+        android:usesCleartextTraffic="true" />
+</manifest>
