@@ -1,9 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/api/api_client.dart';
 import '../../core/models/auth_models.dart';
 import '../../core/utils/monedas_constants.dart';
 import 'auth_service.dart';
 import '../../core/navigation/main_navigation.dart';
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+class _C {
+  static const Color bg = Color(0xFFF4F6FB);
+  static const Color accent = Color(0xFF5B5FEE);
+  static const Color success = Color(0xFF22C55E);
+  static const Color danger = Color(0xFFEF4444);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color primary = Color(0xFF1E2340);
+  static const Color textSub = Color(0xFF64748B);
+  static const Color border = Color(0xFFE2E8F0);
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,23 +25,25 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
   bool _isLoading = false;
   bool _isRegisterMode = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _rememberMe = false;
-  String _selectedMoneda = 'COP'; // Moneda predeterminada para registro
+  String _selectedMoneda = 'COP';
 
   late final AuthService authService;
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
+  late final AnimationController _animCtrl;
+  Animation<double> _fade = const AlwaysStoppedAnimation(1.0);
+  Animation<Offset> _slide = const AlwaysStoppedAnimation(Offset.zero);
 
   @override
   void initState() {
@@ -36,645 +51,567 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     authService = AuthService(ApiClient());
     _loadSavedCredentials();
 
-    _animationController = AnimationController(
+    _animCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
     );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
+    _fade = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.2),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
-
-    _animationController.forward();
-  }
-
-  Future<void> _loadSavedCredentials() async {
-    try {
-      final savedEmail = await authService.apiClient.storage.read(
-        key: 'savedEmail',
-      );
-      final savedPassword = await authService.apiClient.storage.read(
-        key: 'savedPassword',
-      );
-
-      if (savedEmail != null && savedPassword != null) {
-        setState(() {
-          _emailController.text = savedEmail;
-          _passwordController.text = savedPassword;
-          _rememberMe = true;
-        });
-      }
-    } catch (e) {
-      // Silencioso si no hay credenciales guardadas
-    }
-  }
-
-  Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      if (_isRegisterMode) {
-        // Registro
-        final registerRequest = RegisterRequest(
-          nombre: _nombreController.text,
-          email: _emailController.text,
-          password: _passwordController.text,
-          monedaPredeterminada: _selectedMoneda,
-        );
-
-        final response = await authService.register(registerRequest);
-
-        // Guardar credenciales si está marcado recordar
-        if (_rememberMe) {
-          await authService.saveCredentials(
-            _emailController.text,
-            _passwordController.text,
-          );
-        } else {
-          await authService.clearCredentials();
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Text('¡Bienvenido ${response.user.nombre}!'),
-                ],
-              ),
-              backgroundColor: const Color(0xFF10B981),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-          // Navegar a la pantalla principal
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => MainNavigation(user: response.user),
-            ),
-          );
-        }
-      } else {
-        // Login
-        final loginRequest = LoginRequest(
-          email: _emailController.text,
-          password: _passwordController.text,
-        );
-
-        final response = await authService.login(loginRequest);
-
-        // Guardar credenciales si está marcado recordar
-        if (_rememberMe) {
-          await authService.saveCredentials(
-            _emailController.text,
-            _passwordController.text,
-          );
-        } else {
-          await authService.clearCredentials();
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Text('¡Bienvenido ${response.user.nombre}!'),
-                ],
-              ),
-              backgroundColor: const Color(0xFF10B981),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-          // Navegar a la pantalla principal
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => MainNavigation(user: response.user),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(child: Text(e.toString().replaceFirst('Exception: ', ''))),
-              ],
-            ),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF3B82F6);
-    const darkBlue = Color(0xFF2563EB);
-
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [primaryBlue, darkBlue],
-          ),
-        ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 40),
-                        // Logo con animación
-                        Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 30,
-                                offset: const Offset(0, 15),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.account_balance_wallet,
-                            size: 60,
-                            color: primaryBlue,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        // Título
-                        Text(
-                          'Financially',
-                          style: const TextStyle(
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: -1,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _isRegisterMode
-                              ? 'Crea tu cuenta para comenzar'
-                              : 'Gestiona tu dinero de forma inteligente',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white.withOpacity(0.9),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 48),
-                        // Card blanca con formulario
-                        Container(
-                          padding: const EdgeInsets.all(28),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // Título del formulario
-                                Text(
-                                  _isRegisterMode ? 'Registro' : 'Iniciar Sesión',
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1F2937),
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 28),
-                                // Campo de nombre solo en registro
-                                if (_isRegisterMode) ...[
-                                  _buildField(
-                                    controller: _nombreController,
-                                    label: 'Nombre completo',
-                                    icon: Icons.person_outline,
-                                    validator: (value) =>
-                                        value == null || value.isEmpty ? 'Ingresa tu nombre' : null,
-                                  ),
-                                  const SizedBox(height: 16),
-                                ],
-                                // Campo de email
-                                _buildField(
-                                  controller: _emailController,
-                                  label: 'Correo electrónico',
-                                  icon: Icons.email_outlined,
-                                  keyboardType: TextInputType.emailAddress,
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Ingresa tu correo';
-                                    }
-                                    if (!value.contains('@')) {
-                                      return 'Correo inválido';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                // Campo de contraseña
-                                _buildField(
-                                  controller: _passwordController,
-                                  label: 'Contraseña',
-                                  icon: Icons.lock_outline,
-                                  obscureText: _obscurePassword,
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                      color: Colors.grey[600],
-                                      size: 22,
-                                    ),
-                                    onPressed: () => setState(
-                                      () => _obscurePassword = !_obscurePassword,
-                                    ),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Ingresa tu contraseña';
-                                    }
-                                    if (value.length < 6) {
-                                      return 'Mínimo 6 caracteres';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                // Campo de confirmar contraseña solo en registro
-                                if (_isRegisterMode) ...[
-                                  const SizedBox(height: 16),
-                                  _buildField(
-                                    controller: _confirmPasswordController,
-                                    label: 'Confirmar contraseña',
-                                    icon: Icons.lock_outline,
-                                    obscureText: _obscureConfirmPassword,
-                                    suffixIcon: IconButton(
-                                      icon: Icon(
-                                        _obscureConfirmPassword
-                                            ? Icons.visibility_outlined
-                                            : Icons.visibility_off_outlined,
-                                        color: Colors.grey[600],
-                                        size: 22,
-                                      ),
-                                      onPressed: () => setState(
-                                        () => _obscureConfirmPassword =
-                                            !_obscureConfirmPassword,
-                                      ),
-                                    ),
-                                    validator: (value) => value != _passwordController.text
-                                        ? 'Las contraseñas no coinciden'
-                                        : null,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  // Selección de moneda predeterminada
-                                  _buildMonedaSelector(),
-                                ],
-                                // Checkbox "Recordarme" solo en login
-                                if (!_isRegisterMode) ...[
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: Checkbox(
-                                          value: _rememberMe,
-                                          onChanged: (value) {
-                                            setState(() => _rememberMe = value ?? false);
-                                          },
-                                          activeColor: primaryBlue,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      GestureDetector(
-                                        onTap: () {
-                                          setState(() => _rememberMe = !_rememberMe);
-                                        },
-                                        child: const Text(
-                                          'Recordar mi sesión',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Color(0xFF6B7280),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                                const SizedBox(height: 28),
-                                // Botón de submit
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [primaryBlue, darkBlue],
-                                    ),
-                                    borderRadius: BorderRadius.circular(14),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: primaryBlue.withOpacity(0.4),
-                                        blurRadius: 15,
-                                        offset: const Offset(0, 8),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      onTap: _isLoading ? null : _handleSubmit,
-                                      borderRadius: BorderRadius.circular(14),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(vertical: 16),
-                                        child: Center(
-                                          child: _isLoading
-                                              ? const SizedBox(
-                                                  height: 24,
-                                                  width: 24,
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 2.5,
-                                                    valueColor:
-                                                        AlwaysStoppedAnimation<Color>(
-                                                          Colors.white,
-                                                        ),
-                                                  ),
-                                                )
-                                              : Text(
-                                                  _isRegisterMode ? 'Crear cuenta' : 'Iniciar sesión',
-                                                  style: const TextStyle(
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white,
-                                                    letterSpacing: 0.5,
-                                                  ),
-                                                ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        // Texto alternativo
-                        GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _isRegisterMode = !_isRegisterMode;
-                              _formKey.currentState?.reset();
-                              _nombreController.clear();
-                              _confirmPasswordController.clear();
-                            });
-                          },
-                          child: RichText(
-                            textAlign: TextAlign.center,
-                            text: TextSpan(
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: _isRegisterMode
-                                      ? '¿Ya tienes cuenta? '
-                                      : '¿No tienes cuenta? ',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: _isRegisterMode
-                                      ? 'Inicia sesión'
-                                      : 'Regístrate',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 40),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMonedaSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Moneda de tu país',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1F2937),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.grey[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[300]!),
-          ),
-          child: DropdownButtonFormField<String>(
-            initialValue: _selectedMoneda,
-            decoration: const InputDecoration(
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              border: InputBorder.none,
-              prefixIcon: Icon(Icons.currency_exchange, color: Color(0xFF3B82F6)),
-            ),
-            items: MonedasConstants.codigosUnicos.map((codigo) {
-              final monedaInfo = MonedasConstants.getMonedaPorCodigo(codigo);
-              final paises = MonedasConstants.getMonedasPorPais(monedaInfo?.pais ?? '');
-              final displayText = paises.length > 1 
-                  ? '$codigo (${paises.map((m) => m.pais).join(', ')})'
-                  : monedaInfo != null 
-                      ? '${monedaInfo.codigo} - ${monedaInfo.pais}'
-                      : codigo;
-              
-              return DropdownMenuItem<String>(
-                value: codigo,
-                child: Text(
-                  displayText,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-              );
-            }).toList(),
-            onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  _selectedMoneda = value;
-                });
-              }
-            },
-            dropdownColor: Colors.white,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF1F2937),
-            ),
-            icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF6B7280)),
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          _getMonedaInfoText(_selectedMoneda),
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _getMonedaInfoText(String codigo) {
-    final monedaInfo = MonedasConstants.getMonedaPorCodigo(codigo);
-    if (monedaInfo != null) {
-      final paises = MonedasConstants.getMonedasPorPais(monedaInfo.pais);
-      if (paises.length > 1) {
-        final paisesList = paises.map((m) => m.pais).join(', ');
-        return '${monedaInfo.nombreMoneda} - Usado en: $paisesList';
-      }
-      return '${monedaInfo.nombreMoneda} - ${monedaInfo.pais}';
-    }
-    return 'Moneda: $codigo';
-  }
-
-  Widget _buildField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    String? Function(String?)? validator,
-    TextInputType? keyboardType,
-    bool obscureText = false,
-    Widget? suffixIcon,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      obscureText: obscureText,
-      validator: validator,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: Color(0xFF1F2937),
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(
-          color: Colors.grey[600],
-          fontSize: 14,
-        ),
-        prefixIcon: Icon(icon, color: const Color(0xFF3B82F6), size: 22),
-        suffixIcon: suffixIcon,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFEF4444)),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
-        ),
-        filled: true,
-        fillColor: Colors.grey[50],
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
+    _animCtrl.forward();
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _animCtrl.dispose();
     _nombreController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
+
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final email =
+          await authService.apiClient.storage.read(key: 'savedEmail');
+      final password =
+          await authService.apiClient.storage.read(key: 'savedPassword');
+      if (email != null && password != null) {
+        setState(() {
+          _emailController.text = email;
+          _passwordController.text = password;
+          _rememberMe = true;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _handleSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isLoading = true);
+
+    try {
+      AuthResponse response;
+      if (_isRegisterMode) {
+        response = await authService.register(RegisterRequest(
+          nombre: _nombreController.text,
+          email: _emailController.text,
+          password: _passwordController.text,
+          monedaPredeterminada: _selectedMoneda,
+        ));
+      } else {
+        response = await authService.login(LoginRequest(
+          email: _emailController.text,
+          password: _passwordController.text,
+        ));
+      }
+
+      if (_rememberMe) {
+        await authService.saveCredentials(
+            _emailController.text, _passwordController.text);
+      } else {
+        await authService.clearCredentials();
+      }
+
+      if (mounted) {
+        _snack('¡Bienvenido ${response.user.nombre}!', _C.success,
+            Icons.check_circle_rounded);
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => MainNavigation(user: response.user)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _snack(e.toString().replaceFirst('Exception: ', ''), _C.danger,
+            Icons.error_outline_rounded);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _snack(String msg, Color color, IconData icon) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Row(children: [
+        Icon(icon, color: Colors.white, size: 18),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(msg,
+              style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w600, fontSize: 14)),
+        ),
+      ]),
+      backgroundColor: color,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.all(16),
+    ));
+  }
+
+  void _toggleMode() {
+    setState(() {
+      _isRegisterMode = !_isRegisterMode;
+      _formKey.currentState?.reset();
+      _nombreController.clear();
+      _confirmPasswordController.clear();
+    });
+    _animCtrl.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _C.bg,
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _fade,
+          child: SlideTransition(
+            position: _slide,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.of(context).size.height -
+                      MediaQuery.of(context).padding.top -
+                      MediaQuery.of(context).padding.bottom,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 56),
+
+                    // ── Marca ──────────────────────────────────────────
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: _C.accent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: const Icon(
+                            Icons.account_balance_wallet_rounded,
+                            size: 22,
+                            color: _C.accent,
+                          ),
+                        ),
+                        const SizedBox(width: 11),
+                        Text(
+                          'Financially',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: _C.primary,
+                            letterSpacing: -0.6,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 44),
+
+                    // ── Encabezado ─────────────────────────────────────
+                    Text(
+                      _isRegisterMode ? 'Crear cuenta' : 'Bienvenido',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        color: _C.primary,
+                        letterSpacing: -1,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _isRegisterMode
+                          ? 'Completa los datos para registrarte'
+                          : 'Inicia sesion para continuar',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        color: _C.textSub,
+                      ),
+                    ),
+
+                    const SizedBox(height: 36),
+
+                    // ── Campos ─────────────────────────────────────────
+                    Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_isRegisterMode) ...[
+                            _Field(
+                              controller: _nombreController,
+                              label: 'Nombre completo',
+                              icon: Icons.person_outline_rounded,
+                              validator: (v) => v == null || v.isEmpty
+                                  ? 'Ingresa tu nombre'
+                                  : null,
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          _Field(
+                            controller: _emailController,
+                            label: 'Correo electronico',
+                            icon: Icons.mail_outline_rounded,
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return 'Ingresa tu correo';
+                              }
+                              if (!v.contains('@')) return 'Correo invalido';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          _Field(
+                            controller: _passwordController,
+                            label: 'Contrasena',
+                            icon: Icons.lock_outline_rounded,
+                            obscureText: _obscurePassword,
+                            suffixIcon: _EyeBtn(
+                              visible: !_obscurePassword,
+                              onTap: () => setState(
+                                  () => _obscurePassword = !_obscurePassword),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return 'Ingresa tu contrasena';
+                              }
+                              if (v.length < 6) return 'Minimo 6 caracteres';
+                              return null;
+                            },
+                          ),
+                          if (_isRegisterMode) ...[
+                            const SizedBox(height: 14),
+                            _Field(
+                              controller: _confirmPasswordController,
+                              label: 'Confirmar contrasena',
+                              icon: Icons.lock_outline_rounded,
+                              obscureText: _obscureConfirmPassword,
+                              suffixIcon: _EyeBtn(
+                                visible: !_obscureConfirmPassword,
+                                onTap: () => setState(() =>
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword),
+                              ),
+                              validator: (v) =>
+                                  v != _passwordController.text
+                                      ? 'Las contrasenas no coinciden'
+                                      : null,
+                            ),
+                            const SizedBox(height: 14),
+                            _MonedaSelector(
+                              selected: _selectedMoneda,
+                              onChanged: (v) =>
+                                  setState(() => _selectedMoneda = v),
+                            ),
+                          ],
+                          if (!_isRegisterMode) ...[
+                            const SizedBox(height: 16),
+                            _RememberMe(
+                              value: _rememberMe,
+                              onToggle: () =>
+                                  setState(() => _rememberMe = !_rememberMe),
+                            ),
+                          ],
+                          const SizedBox(height: 28),
+                          _SubmitBtn(
+                            isLoading: _isLoading,
+                            label: _isRegisterMode
+                                ? 'Crear cuenta'
+                                : 'Iniciar sesion',
+                            onTap: _handleSubmit,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // ── Toggle ─────────────────────────────────────────
+                    GestureDetector(
+                      onTap: _toggleMode,
+                      child: Center(
+                        child: RichText(
+                          text: TextSpan(children: [
+                            TextSpan(
+                              text: _isRegisterMode
+                                  ? 'Ya tienes cuenta? '
+                                  : 'No tienes cuenta? ',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14, color: _C.textSub),
+                            ),
+                            TextSpan(
+                              text: _isRegisterMode
+                                  ? 'Inicia sesion'
+                                  : 'Registrate',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: _C.accent,
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 48),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Field ────────────────────────────────────────────────────────────────────
+class _Field extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final bool obscureText;
+  final Widget? suffixIcon;
+  final TextInputType? keyboardType;
+  final String? Function(String?)? validator;
+
+  const _Field({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    this.obscureText = false,
+    this.suffixIcon,
+    this.keyboardType,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) => TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        obscureText: obscureText,
+        validator: validator,
+        style: GoogleFonts.plusJakartaSans(
+            fontSize: 14, fontWeight: FontWeight.w500, color: _C.primary),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 13, color: _C.textSub, fontWeight: FontWeight.w500),
+          prefixIcon: Icon(icon, color: _C.accent, size: 20),
+          suffixIcon: suffixIcon,
+          filled: true,
+          fillColor: _C.surface,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: _C.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: _C.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: _C.accent, width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: _C.danger),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: _C.danger, width: 1.5),
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        ),
+      );
+}
+
+// ─── Eye button ───────────────────────────────────────────────────────────────
+class _EyeBtn extends StatelessWidget {
+  final bool visible;
+  final VoidCallback onTap;
+  const _EyeBtn({required this.visible, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        icon: Icon(
+          visible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+          color: _C.textSub,
+          size: 20,
+        ),
+        onPressed: onTap,
+      );
+}
+
+// ─── Remember me ──────────────────────────────────────────────────────────────
+class _RememberMe extends StatelessWidget {
+  final bool value;
+  final VoidCallback onToggle;
+  const _RememberMe({required this.value, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onToggle,
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: value ? _C.accent : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: value ? _C.accent : _C.border,
+                  width: 1.5,
+                ),
+              ),
+              child: value
+                  ? const Icon(Icons.check_rounded,
+                      size: 13, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Recordar mi sesion',
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  color: _C.textSub,
+                  fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      );
+}
+
+// ─── Moneda selector ──────────────────────────────────────────────────────────
+class _MonedaSelector extends StatelessWidget {
+  final String selected;
+  final void Function(String) onChanged;
+  const _MonedaSelector({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final info = MonedasConstants.getMonedaPorCodigo(selected);
+    final hint =
+        info != null ? '${info.nombreMoneda} - ${info.pais}' : selected;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Moneda predeterminada',
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: 13, fontWeight: FontWeight.w600, color: _C.primary),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          initialValue: selected,
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: 14, fontWeight: FontWeight.w500, color: _C.primary),
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.currency_exchange_rounded,
+                color: _C.accent, size: 20),
+            filled: true,
+            fillColor: _C.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _C.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _C.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _C.accent, width: 1.5),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          ),
+          items: MonedasConstants.codigosUnicos.map((codigo) {
+            final m = MonedasConstants.getMonedaPorCodigo(codigo);
+            final paises = MonedasConstants.getMonedasPorPais(m?.pais ?? '');
+            final label = paises.length > 1
+                ? '$codigo (${paises.map((x) => x.pais).join(', ')})'
+                : m != null
+                    ? '${m.codigo} - ${m.pais}'
+                    : codigo;
+            return DropdownMenuItem<String>(
+                value: codigo, child: Text(label));
+          }).toList(),
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+          dropdownColor: _C.surface,
+          borderRadius: BorderRadius.circular(14),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded,
+              color: _C.textSub, size: 22),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          hint,
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: 11, color: _C.textSub, fontStyle: FontStyle.italic),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Submit button ────────────────────────────────────────────────────────────
+class _SubmitBtn extends StatelessWidget {
+  final bool isLoading;
+  final String label;
+  final VoidCallback onTap;
+  const _SubmitBtn(
+      {required this.isLoading, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: _C.accent.withValues(alpha: 0.28),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: isLoading ? null : onTap,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _C.accent,
+            disabledBackgroundColor: _C.accent.withValues(alpha: 0.55),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+          ),
+          child: isLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+        ),
+      );
 }

@@ -56,7 +56,7 @@ class AuthService {
           'Tiempo de espera agotado. Verifica que el backend esté corriendo en ${apiClient.apiBaseUrl}',
         );
       }
-      
+
       if (e.type == DioExceptionType.connectionError) {
         throw Exception(
           'No se pudo conectar al servidor. Verifica:\n'
@@ -65,14 +65,13 @@ class AuthService {
           '3. Si usas dispositivo físico, usa tu IP en lugar de localhost',
         );
       }
-      
+
       if (e.response?.statusCode == 401) {
         throw Exception('Credenciales inválidas');
       }
-      
-      final errorMessage = e.response?.data?['message'] ?? 
-                          e.message ?? 
-                          'Error desconocido';
+
+      final errorMessage =
+          e.response?.data?['message'] ?? e.message ?? 'Error desconocido';
       throw Exception('Error al iniciar sesión: $errorMessage');
     } catch (e) {
       throw Exception('Error al iniciar sesión: $e');
@@ -81,7 +80,11 @@ class AuthService {
 
   // Cerrar sesión
   Future<void> logout() async {
-    await apiClient.clearAuthToken();
+    try {
+      await apiClient.clearAuthToken();
+    } catch (_) {
+      // Ignorar errores al limpiar el token en caso de almacenamiento local inaccesible.
+    }
   }
 
   // Verificar si hay sesión activa
@@ -116,7 +119,8 @@ class AuthService {
           if (telefono != null) 'telefono': telefono,
           if (fechaNacimiento != null)
             'fechaNacimiento': fechaNacimiento.toIso8601String(),
-          if (monedaPredeterminada != null) 'monedaPredeterminada': monedaPredeterminada,
+          if (monedaPredeterminada != null)
+            'monedaPredeterminada': monedaPredeterminada,
         },
       );
 

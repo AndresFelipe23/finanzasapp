@@ -1,11 +1,59 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/meta_models.dart';
 import 'metas_provider.dart';
 import 'create_meta_screen.dart';
 import 'aporte_meta_dialog.dart';
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+class _C {
+  static const Color bg = Color(0xFFF4F6FB);
+  static const Color primary = Color(0xFF1E2340);
+  static const Color accent = Color(0xFF5B5FEE);
+  static const Color success = Color(0xFF22C55E);
+  static const Color danger = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color textSub = Color(0xFF64748B);
+  static const Color border = Color(0xFFE2E8F0);
+  static const Color divider = Color(0xFFF1F5F9);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+IconData _iconData(String? name) {
+  const map = {
+    'flag': Icons.flag_rounded,
+    'home': Icons.home_rounded,
+    'directions_car': Icons.directions_car_rounded,
+    'flight': Icons.flight_rounded,
+    'shopping_bag': Icons.shopping_bag_rounded,
+    'school': Icons.school_rounded,
+    'favorite': Icons.favorite_rounded,
+    'savings': Icons.savings_rounded,
+    'work': Icons.work_rounded,
+    'celebration': Icons.celebration_rounded,
+    'star': Icons.star_rounded,
+    'card_giftcard': Icons.card_giftcard_rounded,
+    'beach_access': Icons.beach_access_rounded,
+    'fitness_center': Icons.fitness_center_rounded,
+    'restaurant': Icons.restaurant_rounded,
+    'music_note': Icons.music_note_rounded,
+  };
+  return map[name] ?? Icons.flag_rounded;
+}
+
+Color _parseColor(String? h) {
+  if (h == null || h.isEmpty) return _C.accent;
+  try {
+    return Color(int.parse(h.replaceFirst('#', '0xFF')));
+  } catch (_) {
+    return _C.accent;
+  }
+}
+
+// ─── Metas Screen ─────────────────────────────────────────────────────────────
 class MetasScreen extends ConsumerStatefulWidget {
   const MetasScreen({super.key});
 
@@ -13,533 +61,370 @@ class MetasScreen extends ConsumerStatefulWidget {
   ConsumerState<MetasScreen> createState() => _MetasScreenState();
 }
 
-class _MetasScreenState extends ConsumerState<MetasScreen> {
-  String _selectedFilter = 'ACTIVAS'; // 'ACTIVAS', 'COMPLETADAS', 'TODAS'
+class _MetasScreenState extends ConsumerState<MetasScreen>
+    with SingleTickerProviderStateMixin {
+  String _filter = 'ACTIVAS';
+  late AnimationController _fabAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _fabAnim = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    )..forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reinitialize if needed during hot reload
+    if (_fabAnim.isDismissed) {
+      _fabAnim = AnimationController(
+        duration: const Duration(milliseconds: 400),
+        vsync: this,
+      )..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _fabAnim.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final metasAsync = ref.watch(metasNotifierProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(24.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF3B82F6).withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.flag_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Mis Metas',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1F2937),
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        Text(
-                          'Alcanza tus objetivos',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF6B7280),
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+      backgroundColor: _C.bg,
+      body: Column(
+        children: [
+          // ── Header ───────────────────────────────────────────────────
+          Container(
+            color: _C.surface,
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + 12,
+              left: 20,
+              right: 20,
+              bottom: 16,
             ),
-            // Filtros
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24.0,
-                vertical: 16.0,
-              ),
-              child: Row(
-                children: [
-                  _buildFilterChip('ACTIVAS', _selectedFilter == 'ACTIVAS'),
-                  const SizedBox(width: 12),
-                  _buildFilterChip(
-                    'COMPLETADAS',
-                    _selectedFilter == 'COMPLETADAS',
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: _C.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  const SizedBox(width: 12),
-                  _buildFilterChip('TODAS', _selectedFilter == 'TODAS'),
-                ],
-              ),
-            ),
-            // Lista de metas
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  await ref.read(metasNotifierProvider.notifier).refresh();
-                },
-                color: const Color(0xFF3B82F6),
-                child: metasAsync.when(
-                  data: (metas) {
-                    final metasFiltradas = _filtrarMetas(
-                      metas,
-                      _selectedFilter,
-                    );
-
-                    if (metasFiltradas.isEmpty) {
-                      return _buildEmptyState();
-                    }
-
-                    return ListView.separated(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24.0,
-                        vertical: 8.0,
-                      ),
-                      itemCount: metasFiltradas.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 16),
-                      itemBuilder: (context, index) {
-                        return _buildMetaCard(metasFiltradas[index]);
-                      },
-                    );
-                  },
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
-                  ),
-                  error: (error, stack) => Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 48,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error al cargar metas',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          error.toString(),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: () {
-                            ref.read(metasNotifierProvider.notifier).refresh();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF3B82F6),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text('Reintentar'),
-                        ),
-                      ],
-                    ),
+                  child: const Icon(
+                    Icons.flag_rounded,
+                    color: _C.accent,
+                    size: 22,
                   ),
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const CreateMetaScreen()));
-        },
-        backgroundColor: const Color(0xFF3B82F6),
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: const Text(
-          'Nueva Meta',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEstadoChip(Meta meta) {
-    // Prioridad visual: Completada > Pausada > Vencida > Activa
-    if (meta.estaCompletada) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFF10B981).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.check_circle, size: 16, color: Color(0xFF10B981)),
-            SizedBox(width: 4),
-            Text(
-              'Completada',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF10B981),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (!meta.activa) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF59E0B).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.pause_circle_filled, size: 16, color: Color(0xFFF59E0B)),
-            SizedBox(width: 4),
-            Text(
-              'Pausada',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFFF59E0B),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (meta.estaVencida) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 16, color: Colors.red),
-            SizedBox(width: 4),
-            Text(
-              'Vencida',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.red,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Activa (por defecto)
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF3B82F6).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.play_circle_fill, size: 16, color: Color(0xFF3B82F6)),
-          SizedBox(width: 4),
-          Text(
-            'Activa',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF3B82F6),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, bool selected) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (value) {
-        setState(() {
-          _selectedFilter = label;
-        });
-      },
-      selectedColor: const Color(0xFF3B82F6),
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : const Color(0xFF6B7280),
-        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-      ),
-    );
-  }
-
-  List<Meta> _filtrarMetas(List<Meta> metas, String filter) {
-    switch (filter) {
-      case 'ACTIVAS':
-        return metas.where((m) => m.activa && !m.estaCompletada).toList();
-      case 'COMPLETADAS':
-        return metas.where((m) => m.estaCompletada).toList();
-      case 'TODAS':
-      default:
-        return metas;
-    }
-  }
-
-  Widget _buildMetaCard(Meta meta) {
-    final color = meta.color != null && meta.color!.isNotEmpty
-        ? Color(int.parse(meta.color!.replaceFirst('#', '0xFF')))
-        : const Color(0xFF3B82F6);
-    final porcentaje = meta.porcentajeCompletado;
-    final fechaFormateada = DateFormat('dd/MM/yyyy').format(meta.fechaObjetivo);
-    final formatoMoneda = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: InkWell(
-        onTap: () => _showMetaOptions(meta),
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header con icono y estado
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      meta.icono != null && meta.icono!.isNotEmpty
-                          ? _getIconData(meta.icono!)
-                          : Icons.flag_rounded,
-                      color: color,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          meta.nombre,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1F2937),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (meta.descripcion != null &&
-                            meta.descripcion!.isNotEmpty)
-                          Text(
-                            meta.descripcion!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6B7280),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
-                    ),
-                  ),
-                  _buildEstadoChip(meta),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Progreso visual
-              Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Progreso',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                        'Mis Metas',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: _C.primary,
+                          height: 1.2,
+                        ),
+                      ),
+                      Text(
+                        'Alcanza tus objetivos',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: _C.textSub,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      Text(
-                        '${porcentaje.toStringAsFixed(1)}%',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                        ),
-                      ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: porcentaje / 100,
-                      minHeight: 10,
-                      backgroundColor: Colors.grey[200],
-                      valueColor: AlwaysStoppedAnimation<Color>(color),
-                    ),
+                ),
+                ScaleTransition(
+                  scale: CurvedAnimation(
+                    parent: _fabAnim,
+                    curve: Curves.elasticOut,
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Montos y fecha
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Recaudado',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  child: GestureDetector(
+                    onTap: () => _navigateToCreate(context),
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: _C.accent,
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        formatoMoneda.format(meta.montoActual),
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Objetivo',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        formatoMoneda.format(meta.montoObjetivo),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1F2937),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Fecha límite',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        fechaFormateada,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: meta.estaVencida
-                              ? Colors.red
-                              : const Color(0xFF1F2937),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              if (!meta.estaCompletada && !meta.estaVencida) ...[
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _mostrarDialogoAporte(meta),
-                    icon: const Icon(Icons.add_rounded, size: 20),
-                    label: const Text('Hacer Aporte'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: color.withOpacity(0.1),
-                      foregroundColor: color,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      child: const Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: 22,
                       ),
                     ),
                   ),
                 ),
               ],
+            ),
+          ),
+
+          // ── Filtros ──────────────────────────────────────────────────
+          Container(
+            color: _C.surface,
+            padding: const EdgeInsets.only(
+              left: 20,
+              right: 20,
+              bottom: 16,
+              top: 4,
+            ),
+            child: Row(
+              children: [
+                _FilterPill(
+                  label: 'Activas',
+                  selected: _filter == 'ACTIVAS',
+                  onTap: () => setState(() => _filter = 'ACTIVAS'),
+                ),
+                const SizedBox(width: 8),
+                _FilterPill(
+                  label: 'Completadas',
+                  selected: _filter == 'COMPLETADAS',
+                  onTap: () => setState(() => _filter = 'COMPLETADAS'),
+                ),
+                const SizedBox(width: 8),
+                _FilterPill(
+                  label: 'Todas',
+                  selected: _filter == 'TODAS',
+                  onTap: () => setState(() => _filter = 'TODAS'),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Lista ────────────────────────────────────────────────────
+          Expanded(
+            child: metasAsync.when(
+              data: (metas) {
+                final filtered = _filtrar(metas, _filter);
+                if (filtered.isEmpty) {
+                  return _EmptyState(
+                    filter: _filter,
+                    onAdd: () => _navigateToCreate(context),
+                  );
+                }
+                return RefreshIndicator(
+                  onRefresh: () async =>
+                      ref.read(metasNotifierProvider.notifier).refresh(),
+                  color: _C.accent,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 14),
+                    itemBuilder: (_, i) => TweenAnimationBuilder<double>(
+                      duration: Duration(milliseconds: 300 + i * 40),
+                      tween: Tween(begin: 0.0, end: 1.0),
+                      curve: Curves.easeOutCubic,
+                      builder: (_, val, child) => Opacity(
+                        opacity: val,
+                        child: Transform.translate(
+                          offset: Offset(0, 16 * (1 - val)),
+                          child: child,
+                        ),
+                      ),
+                      child: _MetaCard(
+                        meta: filtered[i],
+                        onTap: () => _showOptions(context, filtered[i]),
+                        onAporte: () => _mostrarAporte(context, filtered[i]),
+                      ),
+                    ),
+                  ),
+                );
+              },
+              loading: () => const Center(
+                child: CircularProgressIndicator(
+                  color: _C.accent,
+                  strokeWidth: 2,
+                ),
+              ),
+              error: (e, _) => _ErrorState(
+                error: e.toString(),
+                onRetry: () =>
+                    ref.read(metasNotifierProvider.notifier).refresh(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Meta> _filtrar(List<Meta> metas, String f) {
+    switch (f) {
+      case 'ACTIVAS':
+        return metas.where((m) => m.activa && !m.estaCompletada).toList();
+      case 'COMPLETADAS':
+        return metas.where((m) => m.estaCompletada).toList();
+      default:
+        return metas;
+    }
+  }
+
+  void _navigateToCreate(BuildContext context, [Meta? meta]) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => CreateMetaScreen(metaToEdit: meta)),
+    );
+  }
+
+  void _mostrarAporte(BuildContext context, Meta meta) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black45,
+      useRootNavigator: true,
+      builder: (_) => AporteMetaDialog(meta: meta),
+    );
+  }
+
+  void _showOptions(BuildContext context, Meta meta) {
+    final color = _parseColor(meta.color);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: _C.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 4),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _C.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Meta header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        _iconData(meta.icono),
+                        color: color,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            meta.nombre,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: _C.primary,
+                            ),
+                          ),
+                          Text(
+                            'Opciones',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: _C.textSub,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _StatusBadge(meta: meta),
+                  ],
+                ),
+              ),
+              Container(height: 1, color: _C.divider),
+              const SizedBox(height: 8),
+              // Opciones
+              _SheetOption(
+                icon: Icons.south_rounded,
+                iconColor: _C.accent,
+                title: 'Hacer Aporte',
+                subtitle: 'Agregar fondos a esta meta',
+                onTap: () {
+                  Navigator.pop(context);
+                  Future.delayed(const Duration(milliseconds: 100), () {
+                    if (mounted) _mostrarAporte(context, meta);
+                  });
+                },
+              ),
+              _SheetOption(
+                icon: Icons.edit_rounded,
+                iconColor: _C.success,
+                title: 'Editar Meta',
+                subtitle: 'Modificar detalles',
+                onTap: () {
+                  Navigator.pop(context);
+                  Future.delayed(const Duration(milliseconds: 100), () {
+                    if (mounted) _navigateToCreate(context, meta);
+                  });
+                },
+              ),
+              _SheetOption(
+                icon: meta.activa
+                    ? Icons.pause_circle_outline_rounded
+                    : Icons.play_circle_outline_rounded,
+                iconColor: _C.warning,
+                title: meta.activa ? 'Pausar Meta' : 'Activar Meta',
+                subtitle: meta.activa
+                    ? 'Pausar temporalmente'
+                    : 'Reactivar la meta',
+                onTap: () {
+                  Navigator.pop(context);
+                  ref
+                      .read(metasNotifierProvider.notifier)
+                      .toggleActiva(meta.id, !meta.activa);
+                },
+              ),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                height: 1,
+                color: _C.divider,
+              ),
+              _SheetOption(
+                icon: Icons.delete_outline_rounded,
+                iconColor: _C.danger,
+                title: 'Eliminar Meta',
+                subtitle: 'Eliminar permanentemente',
+                isDestructive: true,
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmarEliminacion(context, meta);
+                },
+              ),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -547,554 +432,910 @@ class _MetasScreenState extends ConsumerState<MetasScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3B82F6).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.flag_outlined,
-                size: 64,
-                color: Color(0xFF3B82F6),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'No hay metas aún',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1F2937),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Crea tu primera meta y comienza\na alcanzar tus objetivos',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const CreateMetaScreen()),
-                );
-              },
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Crear Primera Meta'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  void _confirmarEliminacion(BuildContext context, Meta meta) {
+    final fmt = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
+    final color = _parseColor(meta.color);
 
-  IconData _getIconData(String iconName) {
-    // Mapeo simple de nombres de iconos a IconData
-    final iconMap = {
-      'home': Icons.home,
-      'car': Icons.directions_car,
-      'travel': Icons.flight,
-      'shopping': Icons.shopping_bag,
-      'education': Icons.school,
-      'health': Icons.favorite,
-      'savings': Icons.savings,
-      'gift': Icons.card_giftcard,
-      'house': Icons.home,
-      'vacation': Icons.beach_access,
-    };
-    return iconMap[iconName.toLowerCase()] ?? Icons.flag_rounded;
-  }
-
-  void _showMetaOptions(Meta meta) {
-    final metaColor = meta.color != null && meta.color!.isNotEmpty
-        ? Color(int.parse(meta.color!.replaceFirst('#', '0xFF')))
-        : const Color(0xFF3B82F6);
-
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.7,
-        ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 380),
+          decoration: BoxDecoration(
+            color: _C.surface,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: _C.danger.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: _C.danger,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Eliminar meta',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: _C.primary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                // Header de la meta
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _C.bg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _C.border),
                   ),
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(10),
+                        width: 38,
+                        height: 38,
                         decoration: BoxDecoration(
-                          color: metaColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
+                          color: color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
-                          meta.icono != null && meta.icono!.isNotEmpty
-                              ? _getIconData(meta.icono!)
-                              : Icons.flag_rounded,
-                          color: metaColor,
-                          size: 24,
+                          _iconData(meta.icono),
+                          color: color,
+                          size: 18,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               meta.nombre,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1F2937),
-                                letterSpacing: -0.3,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: _C.primary,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              'Opciones',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[600],
+                              '${fmt.format(meta.montoActual)} / ${fmt.format(meta.montoObjetivo)}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: _C.textSub,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      _buildEstadoChip(meta),
                     ],
                   ),
                 ),
-                const Divider(height: 1),
-                const SizedBox(height: 8),
-                // Opciones del menú mejoradas
-                _buildMenuOption(
-                  icon: Icons.trending_up_rounded,
-                  iconColor: const Color(0xFF3B82F6),
-                  title: 'Hacer Aporte',
-                  subtitle: 'Agregar fondos a esta meta',
-                  onTap: () {
-                    Navigator.pop(context);
-                    // Esperar un frame adicional para asegurar que el bottom sheet se cerró
-                    Future.delayed(const Duration(milliseconds: 100), () {
-                      if (mounted) {
-                        _mostrarDialogoAporte(meta);
-                      }
-                    });
-                  },
-                ),
-                _buildMenuOption(
-                  icon: Icons.edit_rounded,
-                  iconColor: const Color(0xFF10B981),
-                  title: 'Editar Meta',
-                  subtitle: 'Modificar detalles de la meta',
-                  onTap: () {
-                    Navigator.pop(context);
-                    // Navegar a la pantalla de edición
-                    Future.delayed(const Duration(milliseconds: 100), () {
-                      if (mounted) {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => CreateMetaScreen(metaToEdit: meta),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _C.warning.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _C.warning.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                        color: _C.warning,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Se eliminarán todos los aportes registrados. Esta acción no se puede deshacer.',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: const Color(0xFF92400E),
+                            height: 1.5,
                           ),
-                        );
-                      }
-                    });
-                  },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                _buildMenuOption(
-                  icon: meta.activa
-                      ? Icons.pause_circle_outline
-                      : Icons.play_circle_outline,
-                  iconColor: const Color(0xFFF59E0B),
-                  title: meta.activa ? 'Pausar Meta' : 'Activar Meta',
-                  subtitle: meta.activa
-                      ? 'Pausar temporalmente'
-                      : 'Reactivar la meta',
-                  onTap: () {
-                    Navigator.pop(context);
-                    ref
-                        .read(metasNotifierProvider.notifier)
-                        .toggleActiva(meta.id, !meta.activa);
-                  },
+              ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          decoration: BoxDecoration(
+                            color: _C.bg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _C.border),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Cancelar',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: _C.textSub,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.of(context).pop();
+                          try {
+                            await ref
+                                .read(metasNotifierProvider.notifier)
+                                .deleteMeta(meta.id);
+                            if (context.mounted) {
+                              _showSnack(context, 'Meta eliminada', _C.success);
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              _showSnack(
+                                context,
+                                e.toString().replaceFirst('Exception: ', ''),
+                                _C.danger,
+                              );
+                            }
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          decoration: BoxDecoration(
+                            color: _C.danger,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Center(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.delete_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Eliminar',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const Divider(height: 24),
-                _buildMenuOption(
-                  icon: Icons.delete_outline_rounded,
-                  iconColor: Colors.red,
-                  title: 'Eliminar Meta',
-                  subtitle: 'Eliminar permanentemente',
-                  isDestructive: true,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _confirmarEliminacion(meta);
-                  },
-                ),
-                const SizedBox(height: 24),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildMenuOption({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    bool isDestructive = false,
-  }) {
-    return InkWell(
+  void _showSnack(BuildContext context, String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+}
+
+// ─── Filter pill ──────────────────────────────────────────────────────────────
+class _FilterPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FilterPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: selected ? _C.accent : _C.bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: selected ? _C.accent : _C.border),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: selected ? Colors.white : _C.textSub,
+        ),
+      ),
+    ),
+  );
+}
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
+class _StatusBadge extends StatelessWidget {
+  final Meta meta;
+  const _StatusBadge({required this.meta});
+
+  @override
+  Widget build(BuildContext context) {
+    late IconData icon;
+    late Color color;
+    late String label;
+
+    if (meta.estaCompletada) {
+      icon = Icons.check_circle_rounded;
+      color = _C.success;
+      label = 'Completada';
+    } else if (!meta.activa) {
+      icon = Icons.pause_circle_rounded;
+      color = _C.warning;
+      label = 'Pausada';
+    } else if (meta.estaVencida) {
+      icon = Icons.error_rounded;
+      color = _C.danger;
+      label = 'Vencida';
+    } else {
+      icon = Icons.play_circle_rounded;
+      color = _C.accent;
+      label = 'Activa';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Meta Card ────────────────────────────────────────────────────────────────
+class _MetaCard extends StatelessWidget {
+  final Meta meta;
+  final VoidCallback onTap;
+  final VoidCallback onAporte;
+
+  const _MetaCard({
+    required this.meta,
+    required this.onTap,
+    required this.onAporte,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _parseColor(meta.color);
+    final barColor = meta.estaCompletada ? _C.success : color;
+    final fmt = NumberFormat('#,###', 'es_CO');
+    final pct = meta.porcentajeCompletado.clamp(0.0, 100.0);
+    final diasRestantes = meta.fechaObjetivo.difference(DateTime.now()).inDays;
+    final canAporte = !meta.estaCompletada && !meta.estaVencida && meta.activa;
+    final faltante = meta.montoObjetivo - meta.montoActual;
+
+    return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDestructive ? Colors.red.withOpacity(0.05) : Colors.grey[50],
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDestructive
-                ? Colors.red.withOpacity(0.1)
-                : Colors.grey[200]!,
-            width: 1,
+          color: _C.surface,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Cabecera tintada ──────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.05),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: Icon(_iconData(meta.icono), color: color, size: 21),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            meta.nombre,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: _C.primary,
+                            ),
+                          ),
+                          if (meta.descripcion != null &&
+                              meta.descripcion!.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              meta.descripcion!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: _C.textSub,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _StatusBadge(meta: meta),
+                  ],
+                ),
+              ),
+
+              // ── Progreso ──────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Progreso',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: _C.textSub,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        Text(
+                          '${pct.toStringAsFixed(1)}%',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: barColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Barra animada
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.0, end: pct / 100),
+                      duration: const Duration(milliseconds: 900),
+                      curve: Curves.easeOutCubic,
+                      builder: (_, val, __) => ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Stack(
+                          children: [
+                            Container(
+                              height: 8,
+                              width: double.infinity,
+                              color: barColor.withValues(alpha: 0.1),
+                            ),
+                            FractionallySizedBox(
+                              widthFactor: val,
+                              child: Container(
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: barColor,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Montos ────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _AmountStat(
+                        label: 'Ahorrado',
+                        value: '\$${fmt.format(meta.montoActual.toInt())}',
+                        valueColor: barColor,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 32,
+                      color: _C.border.withValues(alpha: 0.6),
+                    ),
+                    Expanded(
+                      child: _AmountStat(
+                        label: 'Objetivo',
+                        value: '\$${fmt.format(meta.montoObjetivo.toInt())}',
+                        valueColor: _C.primary,
+                        align: CrossAxisAlignment.center,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 32,
+                      color: _C.border.withValues(alpha: 0.6),
+                    ),
+                    Expanded(
+                      child: _AmountStat(
+                        label: 'Faltante',
+                        value: faltante > 0
+                            ? '\$${fmt.format(faltante.toInt())}'
+                            : '¡Listo!',
+                        valueColor:
+                            faltante > 0 ? _C.textSub : _C.success,
+                        align: CrossAxisAlignment.end,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Footer ────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: (meta.estaCompletada
+                                ? _C.success
+                                : meta.estaVencida
+                                ? _C.danger
+                                : _C.textSub)
+                            .withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            meta.estaCompletada
+                                ? Icons.check_circle_outline_rounded
+                                : Icons.calendar_today_rounded,
+                            size: 12,
+                            color: meta.estaCompletada
+                                ? _C.success
+                                : meta.estaVencida
+                                ? _C.danger
+                                : _C.textSub,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            meta.estaCompletada
+                                ? '¡Meta alcanzada!'
+                                : meta.estaVencida
+                                ? 'Vencida'
+                                : diasRestantes == 0
+                                ? 'Hoy vence'
+                                : '$diasRestantes días',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: meta.estaCompletada
+                                  ? _C.success
+                                  : meta.estaVencida
+                                  ? _C.danger
+                                  : _C.textSub,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    if (canAporte)
+                      GestureDetector(
+                        onTap: onAporte,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 13, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.add_rounded,
+                                  size: 14, color: Colors.white),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Aportar',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AmountStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color valueColor;
+  final CrossAxisAlignment align;
+  const _AmountStat({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+    this.align = CrossAxisAlignment.start,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(
+      left: align == CrossAxisAlignment.end ? 12 : 0,
+      right: align == CrossAxisAlignment.start ? 12 : 0,
+    ),
+    child: Column(
+      crossAxisAlignment: align,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            color: _C.textSub,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: valueColor,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// ─── Sheet option ─────────────────────────────────────────────────────────────
+class _SheetOption extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  const _SheetOption({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor = isDestructive ? _C.danger : iconColor;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
-                color: isDestructive
-                    ? Colors.red.withOpacity(0.1)
-                    : iconColor.withOpacity(0.1),
+                color: effectiveColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                color: isDestructive ? Colors.red : iconColor,
-                size: 24,
-              ),
+              child: Icon(icon, color: effectiveColor, size: 20),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: isDestructive
-                          ? Colors.red
-                          : const Color(0xFF1F2937),
-                      letterSpacing: -0.3,
+                      color: isDestructive ? _C.danger : _C.primary,
                     ),
                   ),
-                  const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: _C.textSub,
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: Colors.grey[400],
-              size: 20,
-            ),
+            Icon(Icons.chevron_right_rounded, size: 18, color: _C.border),
           ],
         ),
       ),
     );
   }
+}
 
-  void _confirmarEliminacion(Meta meta) {
-    final formatoMoneda = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
-    final porcentaje = meta.montoObjetivo > 0 
-        ? (meta.montoActual / meta.montoObjetivo * 100).toStringAsFixed(1)
-        : '0.0';
-    
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Row(
+// ─── Empty / Error states ─────────────────────────────────────────────────────
+class _EmptyState extends StatelessWidget {
+  final String filter;
+  final VoidCallback onAdd;
+  const _EmptyState({required this.filter, required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) {
+    final msg = filter == 'COMPLETADAS'
+        ? 'Sin metas completadas'
+        : 'No tienes metas aún';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: _C.accent.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.warning_amber_rounded,
-                color: Colors.red,
-                size: 28,
+                Icons.flag_outlined,
+                size: 38,
+                color: _C.accent,
               ),
             ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Eliminar Meta',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      if (meta.icono != null)
-                        Icon(
-                          _getIconData(meta.icono!),
-                          color: _parseColor(meta.color),
-                          size: 24,
-                        ),
-                      if (meta.icono != null) const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          meta.nombre,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1F2937),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Objetivo: ${formatoMoneda.format(meta.montoObjetivo)}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF6B7280),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Ahorrado: ${formatoMoneda.format(meta.montoActual)} ($porcentaje%)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: meta.montoActual >= meta.montoObjetivo
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFF6B7280),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '¿Estás seguro de eliminar esta meta?',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1F2937),
+            const SizedBox(height: 20),
+            Text(
+              msg,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: _C.primary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              meta.montoActual > 0
-                  ? 'Se eliminarán todos los aportes registrados (${formatoMoneda.format(meta.montoActual)}) y esta acción no se puede deshacer.'
-                  : 'Se eliminarán todos los aportes registrados y esta acción no se puede deshacer.',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF6B7280),
-                height: 1.4,
+              'Crea tu primera meta y comienza\na alcanzar tus objetivos',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                color: _C.textSub,
+                height: 1.6,
+              ),
+            ),
+            const SizedBox(height: 28),
+            GestureDetector(
+              onTap: onAdd,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 13,
+                ),
+                decoration: BoxDecoration(
+                  color: _C.accent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.add_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Crear Meta',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: Color(0xFFE5E7EB)),
-              ),
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+  const _ErrorState({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: _C.danger.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
             ),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF6B7280),
-              ),
+            child: const Icon(
+              Icons.error_outline_rounded,
+              size: 38,
+              color: _C.danger,
             ),
           ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 0,
+          const SizedBox(height: 20),
+          Text(
+            'Error al cargar metas',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: _C.primary,
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.delete_rounded, size: 18),
-                SizedBox(width: 6),
-                Text(
-                  'Eliminar',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            error,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: _C.textSub,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: onRetry,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+              decoration: BoxDecoration(
+                color: _C.primary,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.refresh_rounded,
+                    color: Colors.white,
+                    size: 18,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    'Reintentar',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
-    ).then((confirmed) async {
-      if (confirmed == true) {
-        try {
-          await ref.read(metasNotifierProvider.notifier).deleteMeta(meta.id);
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Row(
-                  children: [
-                    Icon(Icons.check_circle, color: Colors.white),
-                    SizedBox(width: 12),
-                    Text('Meta eliminada correctamente'),
-                  ],
-                ),
-                backgroundColor: const Color(0xFF10B981),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                margin: const EdgeInsets.all(16),
-              ),
-            );
-          }
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.white),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text('Error al eliminar: ${e.toString()}'),
-                    ),
-                  ],
-                ),
-                backgroundColor: Colors.red,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                margin: const EdgeInsets.all(16),
-              ),
-            );
-          }
-        }
-      }
-    });
-  }
-
-
-  Color _parseColor(String? colorStr) {
-    if (colorStr == null || colorStr.isEmpty) {
-      return const Color(0xFF059669);
-    }
-    try {
-      return Color(int.parse(colorStr.replaceFirst('#', '0xFF')));
-    } catch (e) {
-      return const Color(0xFF059669);
-    }
-  }
-
-  void _mostrarDialogoAporte(Meta meta) {
-    // Usar rootNavigator para asegurar que el diálogo se muestre sobre todo
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierColor: Colors.black54,
-      useRootNavigator: false,
-      builder: (dialogContext) => AporteMetaDialog(meta: meta),
-    );
-  }
+    ),
+  );
 }

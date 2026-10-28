@@ -1,10 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/prestamo_models.dart';
 import 'prestamos_provider.dart';
 import 'create_edit_prestamo_screen.dart';
 import 'pago_prestamo_dialog.dart';
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+class _C {
+  static const Color bg = Color(0xFFF4F6FB);
+  static const Color primary = Color(0xFF1E2340);
+  static const Color accent = Color(0xFF5B5FEE);
+  static const Color success = Color(0xFF22C55E);
+  static const Color danger = Color(0xFFEF4444);
+  static const Color warning = Color(0xFFF59E0B);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color textSub = Color(0xFF64748B);
+  static const Color border = Color(0xFFE2E8F0);
+  static const Color divider = Color(0xFFF1F5F9);
+}
 
 class PrestamosScreen extends ConsumerStatefulWidget {
   const PrestamosScreen({super.key});
@@ -19,386 +34,487 @@ class _PrestamosScreenState extends ConsumerState<PrestamosScreen> {
   @override
   Widget build(BuildContext context) {
     final prestamosAsync = ref.watch(prestamosNotifierProvider);
-    final formato = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.arrow_back_ios_new,
-              size: 18,
-              color: Color(0xFF1F2937),
-            ),
-          ),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
+      backgroundColor: _C.bg,
+      body: Column(
+        children: [
+          // ── Cabecera + filtros (bloque superior unificado) ──────────
+          Material(
+            color: _C.surface,
+            elevation: 0,
+            shadowColor: Colors.black.withValues(alpha: 0.06),
+            child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+                border: Border(
+                  bottom: BorderSide(color: _C.border.withValues(alpha: 0.6)),
                 ),
-                borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF8B5CF6).withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.account_balance_wallet_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Préstamos',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1F2937),
-                letterSpacing: -0.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await ref.read(prestamosNotifierProvider.notifier).refresh();
-        },
-        color: const Color(0xFF10B981),
-        child: prestamosAsync.when(
-          data: (items) {
-            final filtrados = _aplicarFiltro(items);
-            if (filtrados.isEmpty) {
-              return ListView(
-                padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 16),
-                  _buildHeaderResumen(items),
-                  const SizedBox(height: 16),
-                  _buildChipsFiltro(),
-                  const SizedBox(height: 80),
-                  _buildEmptyState(),
-                  const SizedBox(height: 120),
-                ],
-              );
-            }
-            return CustomScrollView(
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      _buildHeaderResumen(items),
-                      const SizedBox(height: 16),
-                      _buildChipsFiltro(),
-                      const SizedBox(height: 16),
-                    ]),
-                  ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final p = filtrados[index];
-                        final color = p.estaCompletado
-                            ? const Color(0xFF10B981)
-                            : (p.estaPausado
-                                  ? const Color(0xFFF59E0B)
-                                  : const Color(0xFF8B5CF6));
-                        return Column(
-                          children: [
-                            if (index > 0) const SizedBox(height: 16),
-                            GestureDetector(
-                  onTap: p.estaPagado ? null : () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => CreateEditPrestamoScreen(prestamo: p),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withOpacity(0.1),
-                          blurRadius: 15,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                  Padding(
+                    padding: EdgeInsets.only(
+                      top: MediaQuery.of(context).padding.top + 10,
+                      left: 8,
+                      right: 20,
+                      bottom: 18,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [color.withOpacity(0.8), color],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: color.withOpacity(0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                p.tipo == 'DEUDA'
-                                    ? Icons.arrow_downward_rounded
-                                    : Icons.arrow_upward_rounded,
-                                color: Colors.white,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          p.nombre,
-                                          style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF1F2937),
-                                            letterSpacing: -0.3,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      _estadoChip(p),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: p.tipo == 'DEUDA'
-                                          ? const Color(0xFFEF4444).withOpacity(0.1)
-                                          : const Color(0xFF10B981).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      p.tipo == 'DEUDA' ? 'Yo debo' : 'Me deben',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: p.tipo == 'DEUDA'
-                                            ? const Color(0xFFEF4444)
-                                            : const Color(0xFF10B981),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Volver',
+                          onPressed: () => Navigator.maybePop(context),
+                          icon: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 20,
+                            color: _C.primary,
+                          ),
                         ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildMontoInfo(
-                                'Saldo pendiente',
-                                formato.format(p.saldoPendiente),
-                                color,
-                              ),
+                        const SizedBox(width: 4),
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                _C.accent.withValues(alpha: 0.18),
+                                _C.accent.withValues(alpha: 0.06),
+                              ],
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: _buildMontoInfo(
-                                'Monto total',
-                                formato.format(p.montoTotal),
-                                const Color(0xFF6B7280),
-                              ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: _C.accent.withValues(alpha: 0.2),
                             ),
-                          ],
+                          ),
+                          child: const Icon(
+                            Icons.account_balance_wallet_rounded,
+                            color: _C.accent,
+                            size: 24,
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        _buildProgress(p),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            // Botón de pago solo si no está pagado
-                            if (!p.estaPagado) ...[
-                              Expanded(
-                                flex: 2,
-                                child: ElevatedButton.icon(
-                                  onPressed: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (_) =>
-                                          PagoPrestamoDialog(prestamo: p),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.payments_rounded, size: 20),
-                                  label: const Text('Registrar pago'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: color,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    elevation: 0,
-                                  ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Mis préstamos',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: _C.primary,
+                                  height: 1.15,
+                                  letterSpacing: -0.3,
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Deudas, créditos y seguimiento en un solo lugar',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  color: _C.textSub,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.35,
+                                ),
+                              ),
                             ],
-                            // Toggle solo si no está pagado
-                            if (!p.estaPagado)
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: p.activa
-                                      ? Colors.orange.withOpacity(0.1)
-                                      : const Color(0xFF10B981).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        Material(
+                          color: _C.accent,
+                          borderRadius: BorderRadius.circular(16),
+                          elevation: 2,
+                          shadowColor: _C.accent.withValues(alpha: 0.45),
+                          child: InkWell(
+                            onTap: () async {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const CreateEditPrestamoScreen(),
                                 ),
-                                child: IconButton(
-                                  onPressed: () {
-                                    ref
-                                        .read(prestamosNotifierProvider.notifier)
-                                        .toggle(p.id, !p.activa);
-                                  },
-                                  icon: Icon(
-                                    p.activa
-                                        ? Icons.pause_circle_rounded
-                                        : Icons.play_circle_rounded,
-                                    color: p.activa
-                                        ? Colors.orange
-                                        : const Color(0xFF10B981),
-                                  ),
-                                ),
-                              ),
-                            // Botón eliminar siempre visible
-                            if (!p.estaPagado) const SizedBox(width: 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: IconButton(
-                                onPressed: () => _showDeleteDialog(context, ref, p, formato),
-                                icon: const Icon(
-                                  Icons.delete_rounded,
-                                  color: Colors.red,
-                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: const SizedBox(
+                              width: 50,
+                              height: 50,
+                              child: Icon(
+                                Icons.add_rounded,
+                                color: Colors.white,
+                                size: 24,
                               ),
                             ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  ),
-                          ],
-                        );
-                      },
-                      childCount: filtrados.length,
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: 0,
+                      right: 0,
+                      bottom: 14,
                     ),
+                    child: _buildChipsFiltro(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Lista + resumen contextual ─────────────────────────────
+          Expanded(
+            child: prestamosAsync.when(
+              data: (items) {
+                final filtrados = _aplicarFiltro(items);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (items.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                        child: _ResumenPrestamos(items: items),
+                      ),
+                    Expanded(
+                      child: filtrados.isEmpty
+                          ? _EmptyState(filtro: _filtro)
+                          : RefreshIndicator(
+                              onRefresh: () async => ref
+                                  .read(prestamosNotifierProvider.notifier)
+                                  .refresh(),
+                              color: _C.accent,
+                              edgeOffset: 8,
+                              child: ListView.separated(
+                                physics: const AlwaysScrollableScrollPhysics(
+                                  parent: BouncingScrollPhysics(),
+                                ),
+                                padding: EdgeInsets.fromLTRB(
+                                  20,
+                                  items.isNotEmpty ? 16 : 20,
+                                  20,
+                                  100,
+                                ),
+                                itemCount: filtrados.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 14),
+                                itemBuilder: (_, i) =>
+                                    TweenAnimationBuilder<double>(
+                                  duration: Duration(
+                                    milliseconds: 280 + i * 36,
+                                  ),
+                                  tween: Tween(begin: 0.0, end: 1.0),
+                                  curve: Curves.easeOutCubic,
+                                  builder: (_, val, child) => Opacity(
+                                    opacity: val,
+                                    child: Transform.translate(
+                                      offset: Offset(0, 12 * (1 - val)),
+                                      child: child,
+                                    ),
+                                  ),
+                                  child: _PrestamoCard(
+                                    prestamo: filtrados[i],
+                                    onPago: () =>
+                                        _mostrarPago(context, filtrados[i]),
+                                    onToggle: () => ref
+                                        .read(
+                                          prestamosNotifierProvider.notifier,
+                                        )
+                                        .toggle(
+                                          filtrados[i].id,
+                                          !filtrados[i].activa,
+                                        ),
+                                    onDelete: () => _confirmarEliminacion(
+                                      context,
+                                      filtrados[i],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ],
+                );
+              },
+              loading: () => const _LoadingPrestamosState(),
+              error: (e, _) => _ErrorState(
+                error: e.toString(),
+                onRetry: () =>
+                    ref.read(prestamosNotifierProvider.notifier).refresh(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _mostrarPago(BuildContext context, Prestamo prestamo) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black45,
+      useRootNavigator: false,
+      builder: (_) => PagoPrestamoDialog(prestamo: prestamo),
+    );
+  }
+
+  void _confirmarEliminacion(BuildContext context, Prestamo prestamo) {
+    final formato = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 380),
+          decoration: BoxDecoration(
+            color: _C.surface,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: _C.danger.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: _C.danger,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Eliminar préstamo',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: _C.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _C.bg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _C.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: prestamo.tipo == 'DEUDA'
+                              ? _C.danger.withValues(alpha: 0.1)
+                              : _C.success.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          prestamo.tipo == 'DEUDA'
+                              ? Icons.arrow_downward_rounded
+                              : Icons.arrow_upward_rounded,
+                          color: prestamo.tipo == 'DEUDA'
+                              ? _C.danger
+                              : _C.success,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              prestamo.nombre,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: _C.primary,
+                              ),
+                            ),
+                            Text(
+                              formato.format(prestamo.montoTotal),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: _C.textSub,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            );
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text(e.toString())),
-        ),
-      ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF8B5CF6).withOpacity(0.4),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: () async {
-            await Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CreateEditPrestamoScreen()),
-            );
-          },
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          icon: const Icon(Icons.add_rounded, color: Colors.white),
-          label: const Text(
-            'Nuevo Préstamo',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _C.warning.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _C.warning.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                        color: _C.warning,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Se eliminarán todos los pagos registrados. Esta acción no se puede deshacer.',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: const Color(0xFF92400E),
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          decoration: BoxDecoration(
+                            color: _C.bg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _C.border),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Cancelar',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: _C.textSub,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.of(context).pop();
+                          try {
+                            await ref
+                                .read(prestamosNotifierProvider.notifier)
+                                .delete(prestamo.id);
+                            if (context.mounted) {
+                              _showSnack(
+                                context,
+                                'Préstamo eliminado',
+                                _C.success,
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              _showSnack(
+                                context,
+                                e.toString().replaceFirst('Exception: ', ''),
+                                _C.danger,
+                              );
+                            }
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          decoration: BoxDecoration(
+                            color: _C.danger,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Center(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.delete_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Eliminar',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildMontoInfo(String label, String value, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Color(0xFF6B7280),
-            fontWeight: FontWeight.w500,
-          ),
+  void _showSnack(BuildContext context, String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: color,
-            letterSpacing: -0.3,
-          ),
-        ),
-      ],
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
     );
   }
 
@@ -417,384 +533,314 @@ class _PrestamosScreenState extends ConsumerState<PrestamosScreen> {
     }
   }
 
-  Widget _buildProgress(Prestamo p) {
-    final total = p.montoTotal <= 0 ? 1.0 : p.montoTotal;
-    final pagado = (p.montoTotal - p.saldoPendiente).clamp(0, p.montoTotal);
-    final pct = (pagado / total);
-    final color = p.estaCompletado
-        ? const Color(0xFF10B981)
-        : (p.estaPausado ? const Color(0xFFF59E0B) : const Color(0xFF3B82F6));
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildChipsFiltro() {
+    const chips = <(String, String)>[
+      ('ACTIVOS', 'Activos'),
+      ('PAUSADOS', 'Pausados'),
+      ('PAGADOS', 'Pagados'),
+      ('COMPLETADOS', 'Completados'),
+      ('TODOS', 'Todos'),
+    ];
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
           children: [
-            Text(
-              'Progreso',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-            Text(
-              '${(pct * 100).toStringAsFixed(1)}%',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: color,
+            for (var i = 0; i < chips.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              _FiltroChip(
+                label: chips[i].$2,
+                selected: _filtro == chips[i].$1,
+                onSelected: () => setState(() => _filtro = chips[i].$1),
               ),
-            ),
+            ],
           ],
         ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: LinearProgressIndicator(
-            value: pct,
-            minHeight: 8,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+      ),
+    );
+  }
+}
+
+class _FiltroChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  const _FiltroChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onSelected,
+      behavior: HitTestBehavior.translucent,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? _C.accent : _C.bg,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: selected ? _C.accent : _C.border,
+            width: selected ? 1.2 : 1,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: _C.accent.withValues(alpha: 0.22),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : _C.textSub,
+            letterSpacing: -0.1,
           ),
         ),
-      ],
+      ),
     );
   }
+}
 
-  Widget _buildChipsFiltro() {
-    Widget chip(String label) {
-      final selected = _filtro == label;
-      return ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => setState(() => _filtro = label),
-        selectedColor: const Color(0xFF3B82F6).withOpacity(0.15),
-        labelStyle: TextStyle(
-          color: selected ? const Color(0xFF3B82F6) : const Color(0xFF1F2937),
-          fontWeight: FontWeight.w600,
-        ),
-        backgroundColor: Colors.grey[100],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      );
-    }
+// ─── Resumen KPIs ────────────────────────────────────────────────────────────
+class _ResumenPrestamos extends StatelessWidget {
+  final List<Prestamo> items;
+  const _ResumenPrestamos({required this.items});
 
-    return Wrap(
-      spacing: 8,
-      children: [
-        chip('ACTIVOS'),
-        chip('PAUSADOS'),
-        chip('PAGADOS'),
-        chip('COMPLETADOS'),
-        chip('TODOS'),
-      ],
-    );
-  }
-
-  Widget _buildHeaderResumen(List<Prestamo> items) {
-    final total = items.fold<double>(0, (s, p) => s + p.montoTotal);
-    final saldo = items.fold<double>(0, (s, p) => s + p.saldoPendiente);
-    final pagado = (total - saldo).clamp(0, total);
-    final formato = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
+  @override
+  Widget build(BuildContext context) {
+    final activos = items.where((p) => p.activa && !p.estaPagado).length;
+    final noPagados = items.where((p) => !p.estaPagado);
+    final pendiente =
+        noPagados.fold<double>(0, (s, p) => s + p.saldoPendiente);
+    final deudaPend = items
+        .where((p) => p.tipo == 'DEUDA' && !p.estaPagado)
+        .fold<double>(0, (s, p) => s + p.saldoPendiente);
+    final creditoPend = items
+        .where((p) => p.tipo == 'PRESTAMO' && !p.estaPagado)
+        .fold<double>(0, (s, p) => s + p.saldoPendiente);
+    final fmt = NumberFormat('#,###', 'es_CO');
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey[200]!),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _C.primary,
+            Color.lerp(_C.primary, _C.accent, 0.12)!,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: _C.primary.withValues(alpha: 0.22),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Resumen',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1F2937),
-            ),
-          ),
-          const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
-                child: _miniStat(
-                  'Total',
-                  formato.format(total),
-                  const Color(0xFF1F2937),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.insights_rounded,
+                  color: Colors.white,
+                  size: 20,
                 ),
               ),
+              const SizedBox(width: 10),
               Expanded(
-                child: _miniStat(
-                  'Pagado',
-                  formato.format(pagado),
-                  const Color(0xFF10B981),
-                ),
-              ),
-              Expanded(
-                child: _miniStat(
-                  'Saldo',
-                  formato.format(saldo),
-                  const Color(0xFF3B82F6),
+                child: Text(
+                  'Resumen',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.85),
+                    letterSpacing: 0.2,
+                  ),
                 ),
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _miniStat(String label, String value, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF3B82F6).withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.request_page_outlined,
-            size: 42,
-            color: Color(0xFF3B82F6),
-          ),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'No hay préstamos con este filtro',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1F2937),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Crea uno nuevo con el botón “Nuevo”',
-          style: TextStyle(color: Colors.grey[600]),
-        ),
-      ],
-    );
-  }
-
-  Widget _estadoChip(Prestamo p) {
-    if (p.estaCompletado) {
-      return _chip(const Color(0xFF10B981), Icons.check_circle, 'Completado');
-    }
-    if (!p.activa) {
-      return _chip(const Color(0xFFF59E0B), Icons.pause_circle, 'Pausado');
-    }
-    return _chip(const Color(0xFF3B82F6), Icons.play_circle, 'Activo');
-  }
-
-  Widget _chip(Color color, IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showDeleteDialog(
-    BuildContext context,
-    WidgetRef ref,
-    Prestamo prestamo,
-    NumberFormat formato,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.warning_amber_rounded,
-                color: Colors.red,
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Eliminar Préstamo',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _KpiPill(
+                  label: 'Activos',
+                  value: '$activos',
+                  hint: 'en seguimiento',
                 ),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: _KpiPill(
+                  label: 'Saldo pendiente',
+                  value: '\$${fmt.format(pendiente.round())}',
+                  hint: 'total por liquidar',
+                ),
+              ),
+            ],
+          ),
+          if (deudaPend > 0.01 || creditoPend > 0.01) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _MiniFlow(
+                    label: 'Yo debo',
+                    amount: '\$${fmt.format(deudaPend.round())}',
+                    color: const Color(0xFFFFB4B4),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MiniFlow(
+                    label: 'Me deben',
+                    amount: '\$${fmt.format(creditoPend.round())}',
+                    color: const Color(0xFFB8F5C8),
+                  ),
+                ),
+              ],
             ),
           ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        prestamo.tipo == 'DEUDA'
-                            ? Icons.arrow_downward_rounded
-                            : Icons.arrow_upward_rounded,
-                        color: prestamo.tipo == 'DEUDA'
-                            ? const Color(0xFFEF4444)
-                            : const Color(0xFF10B981),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          prestamo.nombre,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1F2937),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Monto: ${formato.format(prestamo.montoTotal)}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF6B7280),
-                    ),
-                  ),
-                  if (prestamo.saldoPendiente > 0) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Saldo pendiente: ${formato.format(prestamo.saldoPendiente)}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFFEF4444),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KpiPill extends StatelessWidget {
+  final String label;
+  final String value;
+  final String hint;
+  const _KpiPill({
+    required this.label,
+    required this.value,
+    required this.hint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.65),
+              letterSpacing: 0.6,
             ),
-            const SizedBox(height: 16),
-            const Text(
-              '¿Estás seguro de eliminar este préstamo?',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1F2937),
-              ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              height: 1.1,
+              letterSpacing: -0.4,
             ),
-            const SizedBox(height: 8),
-            Text(
-              prestamo.saldoPendiente > 0
-                  ? 'Se eliminarán todos los pagos registrados y esta acción no se puede deshacer.'
-                  : 'Se eliminarán todos los pagos registrados y esta acción no se puede deshacer.',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF6B7280),
-                height: 1.4,
-              ),
+          ),
+          Text(
+            hint,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: Colors.white.withValues(alpha: 0.55),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-            ),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF6B7280),
-              ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniFlow extends StatelessWidget {
+  final String label;
+  final String amount;
+  final Color color;
+  const _MiniFlow({
+    required this.label,
+    required this.amount,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 0,
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.delete_rounded, size: 18),
-                SizedBox(width: 6),
                 Text(
-                  'Eliminar',
-                  style: TextStyle(
-                    fontSize: 15,
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
+                ),
+                Text(
+                  amount,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -803,52 +849,717 @@ class _PrestamosScreenState extends ConsumerState<PrestamosScreen> {
         ],
       ),
     );
+  }
+}
 
-    if (confirmed == true) {
-      try {
-        await ref.read(prestamosNotifierProvider.notifier).delete(prestamo.id);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text('Préstamo eliminado correctamente'),
-                ],
-              ),
-              backgroundColor: const Color(0xFF10B981),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.all(16),
+class _LoadingPrestamosState extends StatelessWidget {
+  const _LoadingPrestamosState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: CircularProgressIndicator(
+              color: _C.accent,
+              strokeWidth: 2.8,
             ),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text('Error al eliminar: ${e.toString()}'),
+          ),
+          const SizedBox(height: 22),
+          Text(
+            'Cargando préstamos…',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _C.primary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Un momento mientras sincronizamos tus datos',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: _C.textSub,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Prestamo Card ───────────────────────────────────────────────────────────
+class _PrestamoCard extends StatelessWidget {
+  final Prestamo prestamo;
+  final VoidCallback onPago;
+  final VoidCallback onToggle;
+  final VoidCallback onDelete;
+
+  const _PrestamoCard({
+    required this.prestamo,
+    required this.onPago,
+    required this.onToggle,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = prestamo.estaCompletado
+        ? _C.success
+        : (prestamo.estaPausado ? _C.warning : _C.accent);
+    final formato = NumberFormat('#,###', 'es_CO');
+    final pct = prestamo.montoTotal > 0
+        ? ((prestamo.montoTotal - prestamo.saldoPendiente) /
+              prestamo.montoTotal *
+              100)
+        : 0.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _C.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Franja lateral
+              Container(width: 4, color: color),
+              // Contenido
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top: icon + name + status
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              prestamo.tipo == 'DEUDA'
+                                  ? Icons.arrow_downward_rounded
+                                  : Icons.arrow_upward_rounded,
+                              color: color,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  prestamo.nombre,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: _C.primary,
+                                  ),
+                                ),
+                                if (prestamo.notas != null &&
+                                    prestamo.notas!.isNotEmpty)
+                                  Text(
+                                    prestamo.notas!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      color: _C.textSub,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _StatusBadge(prestamo: prestamo),
+                        ],
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // Tipo badge + fechas
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: prestamo.tipo == 'DEUDA'
+                                  ? _C.danger.withValues(alpha: 0.1)
+                                  : _C.success.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              prestamo.tipo == 'DEUDA' ? 'Yo debo' : 'Me deben',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: prestamo.tipo == 'DEUDA'
+                                    ? _C.danger
+                                    : _C.success,
+                              ),
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.event_rounded,
+                                size: 14,
+                                color: _C.textSub,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Inicio ${DateFormat('dd/MM/yyyy').format(prestamo.fechaInicio)}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _C.textSub,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (prestamo.tasaInteres != null &&
+                              prestamo.tasaInteres! > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _C.divider,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: _C.border),
+                              ),
+                              child: Text(
+                                '${prestamo.tasaInteres!.toStringAsFixed(1)}% interés',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: _C.primary,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Barra de progreso
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Progreso',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color: _C.textSub,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            '${pct.toStringAsFixed(1)}%',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: color,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: pct / 100,
+                          minHeight: 8,
+                          backgroundColor: _C.divider,
+                          valueColor: AlwaysStoppedAnimation<Color>(color),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Montos
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _AmountStat(
+                              label: 'Saldo pendiente',
+                              value:
+                                  '\$${formato.format(prestamo.saldoPendiente.toInt())}',
+                              valueColor: color,
+                            ),
+                          ),
+                          Container(width: 1, height: 32, color: _C.divider),
+                          Expanded(
+                            child: _AmountStat(
+                              label: 'Monto total',
+                              value:
+                                  '\$${formato.format(prestamo.montoTotal.toInt())}',
+                              valueColor: _C.primary,
+                              align: CrossAxisAlignment.end,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 14),
+                      Container(height: 1, color: _C.divider),
+                      const SizedBox(height: 12),
+
+                      // Footer: acciones
+                      Row(
+                        children: [
+                          if (!prestamo.estaPagado) ...[
+                            Expanded(
+                              flex: 2,
+                              child: Material(
+                                color: color.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(14),
+                                child: InkWell(
+                                  onTap: onPago,
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.payments_rounded,
+                                          size: 18,
+                                          color: color,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Registrar pago',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w800,
+                                            color: color,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Material(
+                              color: prestamo.activa
+                                  ? _C.warning.withValues(alpha: 0.12)
+                                  : _C.success.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              child: InkWell(
+                                onTap: onToggle,
+                                borderRadius: BorderRadius.circular(14),
+                                child: SizedBox(
+                                  width: 46,
+                                  height: 46,
+                                  child: Icon(
+                                    prestamo.activa
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                    size: 22,
+                                    color: prestamo.activa
+                                        ? _C.warning
+                                        : _C.success,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                          ],
+                          Material(
+                            color: _C.danger.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(14),
+                            child: InkWell(
+                              onTap: onDelete,
+                              borderRadius: BorderRadius.circular(14),
+                              child: const SizedBox(
+                                width: 46,
+                                height: 46,
+                                child: Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 20,
+                                  color: _C.danger,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
+class _StatusBadge extends StatelessWidget {
+  final Prestamo prestamo;
+  const _StatusBadge({required this.prestamo});
+
+  @override
+  Widget build(BuildContext context) {
+    late IconData icon;
+    late Color color;
+    late String label;
+
+    if (prestamo.estaCompletado) {
+      icon = Icons.check_circle_rounded;
+      color = _C.success;
+      label = 'Completado';
+    } else if (!prestamo.activa) {
+      icon = Icons.pause_circle_rounded;
+      color = _C.warning;
+      label = 'Pausado';
+    } else {
+      icon = Icons.play_circle_rounded;
+      color = _C.accent;
+      label = 'Activo';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Amount stat ──────────────────────────────────────────────────────────────
+class _AmountStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color valueColor;
+  final CrossAxisAlignment align;
+  const _AmountStat({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+    this.align = CrossAxisAlignment.start,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(
+      left: align == CrossAxisAlignment.start ? 0 : 12,
+      right: align == CrossAxisAlignment.end ? 0 : 12,
+    ),
+    child: Column(
+      crossAxisAlignment: align,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            color: _C.textSub,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: valueColor,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// ─── Empty / Error states ─────────────────────────────────────────────────────
+class _EmptyState extends StatelessWidget {
+  final String filtro;
+  const _EmptyState({required this.filtro});
+
+  (String titulo, String subtitulo, IconData icono) _copy() {
+    switch (filtro) {
+      case 'ACTIVOS':
+        return (
+          'Nada en activos',
+          'Los préstamos activos aparecerán aquí. Prueba otro filtro o crea uno nuevo.',
+          Icons.bolt_rounded,
+        );
+      case 'PAUSADOS':
+        return (
+          'Sin préstamos pausados',
+          'Puedes pausar un préstamo desde la tarjeta cuando quieras congelar pagos.',
+          Icons.pause_circle_outline_rounded,
+        );
+      case 'PAGADOS':
+        return (
+          'Sin préstamos pagados',
+          'Cuando marques uno como pagado, lo verás en esta vista.',
+          Icons.receipt_long_rounded,
+        );
+      case 'COMPLETADOS':
+        return (
+          'Aún sin completados',
+          'Al saldar el saldo al 100%, el préstamo pasará a completado automáticamente.',
+          Icons.task_alt_rounded,
+        );
+      case 'TODOS':
+        return (
+          'Empieza por aquí',
+          'Registra deudas o créditos para ver progreso, pagos y resúmenes en un solo lugar.',
+          Icons.account_balance_wallet_outlined,
+        );
+      default:
+        return (
+          'Sin resultados',
+          'Prueba con otro filtro o crea un préstamo nuevo.',
+          Icons.search_off_rounded,
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final (titulo, subtitulo, icono) = _copy();
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _C.accent.withValues(alpha: 0.14),
+                    _C.accent.withValues(alpha: 0.04),
+                  ],
+                ),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _C.accent.withValues(alpha: 0.18),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: _C.accent.withValues(alpha: 0.12),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
                   ),
                 ],
               ),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.all(16),
+              child: Icon(icono, size: 42, color: _C.accent),
             ),
-          );
-        }
-      }
-    }
+            const SizedBox(height: 22),
+            Text(
+              titulo,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: _C.primary,
+                height: 1.2,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              subtitulo,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                color: _C.textSub,
+                height: 1.55,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 28),
+            Material(
+              color: _C.accent,
+              borderRadius: BorderRadius.circular(16),
+              elevation: 2,
+              shadowColor: _C.accent.withValues(alpha: 0.4),
+              child: InkWell(
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const CreateEditPrestamoScreen(),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 26,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Crear préstamo',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+  const _ErrorState({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: _C.danger.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.error_outline_rounded,
+              size: 38,
+              color: _C.danger,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Error al cargar préstamos',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: _C.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            error,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: _C.textSub,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: onRetry,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+              decoration: BoxDecoration(
+                color: _C.primary,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.refresh_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Reintentar',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

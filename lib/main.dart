@@ -1,10 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'core/config/app_config.dart';
+import 'core/theme/neo_bank_theme.dart';
 import 'features/splash/splash_screen.dart';
 
-void main() {
+void main() async {
+  // Asegurar que Flutter esté inicializado para operaciones asíncronas
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializar configuración desde .env
+  await AppConfig.initialize();
+
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+    ),
+  );
+
   // Manejo de errores global
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
@@ -23,17 +41,16 @@ void main() {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
       title: 'Financially',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.purple),
-        useMaterial3: true,
-      ),
+      theme: NeoBankTheme.lightTheme(),
+      darkTheme: NeoBankTheme.darkTheme(),
+      themeMode: ref.watch(themeModeProvider),
       // Configuración de localización en español
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

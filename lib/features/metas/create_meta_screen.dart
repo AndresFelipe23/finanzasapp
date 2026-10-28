@@ -1,13 +1,87 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/meta_models.dart';
 import 'metas_provider.dart';
 
+// ── Design tokens ──────────────────────────────────────────────────────────────
+class _C {
+  static const primary       = Color(0xFF1E2340);
+  static const accent        = Color(0xFF5B5FEE);
+  static const success       = Color(0xFF22C55E);
+  static const background    = Color(0xFFF4F6FB);
+  static const surface       = Color(0xFFFFFFFF);
+  static const textPrimary   = Color(0xFF1E2340);
+  static const textSecondary = Color(0xFF64748B);
+  static const border        = Color(0xFFE2E8F0);
+}
+
+// ── Top-level data ─────────────────────────────────────────────────────────────
+class ColorOption {
+  final String hex;
+  final String name;
+  final Color color;
+  const ColorOption(this.hex, this.name, this.color);
+}
+
+class IconOption {
+  final String key;
+  final String name;
+  final IconData iconData;
+  const IconOption(this.key, this.name, this.iconData);
+}
+
+const _kColores = [
+  ColorOption('#3B82F6', 'Azul',     Color(0xFF3B82F6)),
+  ColorOption('#10B981', 'Verde',    Color(0xFF10B981)),
+  ColorOption('#8B5CF6', 'Morado',   Color(0xFF8B5CF6)),
+  ColorOption('#EC4899', 'Rosa',     Color(0xFFEC4899)),
+  ColorOption('#F59E0B', 'Amarillo', Color(0xFFF59E0B)),
+  ColorOption('#EF4444', 'Rojo',     Color(0xFFEF4444)),
+  ColorOption('#06B6D4', 'Cian',     Color(0xFF06B6D4)),
+  ColorOption('#6366F1', 'Índigo',   Color(0xFF6366F1)),
+];
+
+const _kIconos = [
+  IconOption('flag',           'Meta',        Icons.flag_rounded),
+  IconOption('home',           'Casa',        Icons.home_rounded),
+  IconOption('directions_car', 'Auto',        Icons.directions_car_rounded),
+  IconOption('flight',         'Viaje',       Icons.flight_rounded),
+  IconOption('shopping_bag',   'Compras',     Icons.shopping_bag_rounded),
+  IconOption('school',         'Educación',   Icons.school_rounded),
+  IconOption('favorite',       'Salud',       Icons.favorite_rounded),
+  IconOption('savings',        'Ahorros',     Icons.savings_rounded),
+  IconOption('work',           'Trabajo',     Icons.work_rounded),
+  IconOption('celebration',    'Celebración', Icons.celebration_rounded),
+  IconOption('star',           'Estrella',    Icons.star_rounded),
+  IconOption('card_giftcard',  'Regalo',      Icons.card_giftcard_rounded),
+  IconOption('beach_access',   'Vacaciones',  Icons.beach_access_rounded),
+  IconOption('fitness_center', 'Fitness',     Icons.fitness_center_rounded),
+  IconOption('restaurant',     'Restaurante', Icons.restaurant_rounded),
+  IconOption('music_note',     'Música',      Icons.music_note_rounded),
+];
+
+IconData _iconData(String? key) {
+  for (final o in _kIconos) {
+    if (o.key == key) return o.iconData;
+  }
+  return Icons.flag_rounded;
+}
+
+Color _parseColor(String? hex) {
+  if (hex == null || hex.isEmpty) return _C.accent;
+  try {
+    return Color(int.parse(hex.replaceFirst('#', '0xFF')));
+  } catch (_) {
+    return _C.accent;
+  }
+}
+
+// ── Screen ─────────────────────────────────────────────────────────────────────
 class CreateMetaScreen extends ConsumerStatefulWidget {
   final Meta? metaToEdit;
-
   const CreateMetaScreen({super.key, this.metaToEdit});
 
   @override
@@ -15,61 +89,31 @@ class CreateMetaScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateMetaScreenState extends ConsumerState<CreateMetaScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nombreController = TextEditingController();
+  final _formKey              = GlobalKey<FormState>();
+  final _nombreController     = TextEditingController();
   final _descripcionController = TextEditingController();
-  final _montoObjetivoController = TextEditingController();
+  final _montoController      = TextEditingController();
   DateTime _fechaObjetivo = DateTime.now().add(const Duration(days: 30));
   String? _selectedColor;
   String? _selectedIcono;
+  bool _isSubmitting = false;
 
-  // Paleta de colores
-  final List<ColorOption> _colores = [
-    ColorOption('#3B82F6', 'Azul', Colors.blue),
-    ColorOption('#10B981', 'Verde', Colors.green),
-    ColorOption('#8B5CF6', 'Morado', Colors.purple),
-    ColorOption('#EC4899', 'Rosa', Colors.pink),
-    ColorOption('#F59E0B', 'Amarillo', Colors.orange),
-    ColorOption('#EF4444', 'Rojo', Colors.red),
-    ColorOption('#06B6D4', 'Cian', Colors.cyan),
-    ColorOption('#6366F1', 'Índigo', Colors.indigo),
-  ];
-
-  // Iconos disponibles
-  final List<IconOption> _iconos = [
-    IconOption('flag', 'Meta', Icons.flag_rounded),
-    IconOption('home', 'Casa', Icons.home_rounded),
-    IconOption('directions_car', 'Auto', Icons.directions_car_rounded),
-    IconOption('flight', 'Viaje', Icons.flight_rounded),
-    IconOption('shopping_bag', 'Compras', Icons.shopping_bag_rounded),
-    IconOption('school', 'Educación', Icons.school_rounded),
-    IconOption('favorite', 'Salud', Icons.favorite_rounded),
-    IconOption('savings', 'Ahorros', Icons.savings_rounded),
-    IconOption('work', 'Trabajo', Icons.work_rounded),
-    IconOption('celebration', 'Celebración', Icons.celebration_rounded),
-    IconOption('star', 'Estrella', Icons.star_rounded),
-    IconOption('card_giftcard', 'Regalo', Icons.card_giftcard_rounded),
-    IconOption('beach_access', 'Vacaciones', Icons.beach_access_rounded),
-    IconOption('fitness_center', 'Fitness', Icons.fitness_center_rounded),
-    IconOption('restaurant', 'Restaurante', Icons.restaurant_rounded),
-    IconOption('music_note', 'Música', Icons.music_note_rounded),
-  ];
+  bool get isEdit => widget.metaToEdit != null;
 
   @override
   void initState() {
     super.initState();
     if (widget.metaToEdit != null) {
-      final meta = widget.metaToEdit!;
-      _nombreController.text = meta.nombre;
-      _descripcionController.text = meta.descripcion ?? '';
-      _montoObjetivoController.text = meta.montoObjetivo.toStringAsFixed(0);
-      _fechaObjetivo = meta.fechaObjetivo;
-      _selectedColor = meta.color;
-      _selectedIcono = meta.icono;
+      final m = widget.metaToEdit!;
+      _nombreController.text       = m.nombre;
+      _descripcionController.text  = m.descripcion ?? '';
+      _montoController.text        = m.montoObjetivo.toStringAsFixed(0);
+      _fechaObjetivo               = m.fechaObjetivo;
+      _selectedColor               = m.color;
+      _selectedIcono               = m.icono;
     } else {
-      // Valores por defecto para nueva meta
-      _selectedColor = _colores[0].hex;
-      _selectedIcono = _iconos[0].key;
+      _selectedColor = _kColores[0].hex;
+      _selectedIcono = _kIconos[0].key;
     }
   }
 
@@ -77,437 +121,158 @@ class _CreateMetaScreenState extends ConsumerState<CreateMetaScreen> {
   void dispose() {
     _nombreController.dispose();
     _descripcionController.dispose();
-    _montoObjetivoController.dispose();
+    _montoController.dispose();
     super.dispose();
   }
 
-  Color _getSelectedColor() {
-    if (_selectedColor == null) return const Color(0xFF3B82F6);
-    try {
-      return Color(int.parse(_selectedColor!.replaceFirst('#', '0xFF')));
-    } catch (e) {
-      return const Color(0xFF3B82F6);
-    }
-  }
-
-  bool get isEdit => widget.metaToEdit != null;
-
   @override
   Widget build(BuildContext context) {
-    final selectedColor = _getSelectedColor();
-    final formatoMoneda = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
-    final montoObjetivo = double.tryParse(_montoObjetivoController.text) ?? 0.0;
+    final metaColor     = _parseColor(_selectedColor);
+    final fmt           = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
+    final montoObjetivo = double.tryParse(_montoController.text) ?? 0.0;
     final diasRestantes = _fechaObjetivo.difference(DateTime.now()).inDays;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: _C.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _C.surface,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: Container(
-            padding: const EdgeInsets.all(8),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(12),
+              color: _C.background,
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
-              Icons.arrow_back_ios_new,
-              size: 18,
-              color: Color(0xFF1F2937),
-            ),
+            child: const Icon(Icons.arrow_back_ios_new, size: 16, color: _C.textPrimary),
           ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           isEdit ? 'Editar Meta' : 'Nueva Meta',
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937),
-            letterSpacing: -0.5,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: _C.textPrimary,
           ),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Vista previa
-              _buildPreviewCard(selectedColor, formatoMoneda, montoObjetivo, diasRestantes),
-              const SizedBox(height: 24),
-              // Información básica
-              const Text(
-                'Información básica',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                  letterSpacing: -0.3,
-                ),
+              _PreviewCard(
+                nombre:       _nombreController.text,
+                metaColor:    metaColor,
+                icono:        _selectedIcono,
+                monto:        montoObjetivo,
+                fmt:          fmt,
+                dias:         diasRestantes,
+                isEdit:       isEdit,
+                metaOriginal: widget.metaToEdit,
               ),
+              const SizedBox(height: 24),
+              const _SectionLabel('Información básica'),
               const SizedBox(height: 12),
-              TextFormField(
+              _Field(
                 controller: _nombreController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre de la meta *',
-                  hintText: 'Ej: Viaje a Europa',
-                  prefixIcon: Icon(
-                    _selectedIcono != null
-                        ? _getIconData(_selectedIcono!)
-                        : Icons.flag_rounded,
-                    color: selectedColor,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: selectedColor, width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                onChanged: (value) => setState(() {}),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'El nombre es requerido';
-                  }
+                label: 'Nombre de la meta',
+                hint: 'Ej: Viaje a Europa',
+                prefixIcon: Icon(_iconData(_selectedIcono), color: metaColor, size: 20),
+                onChanged: (_) => setState(() {}),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'El nombre es requerido';
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              TextFormField(
+              const SizedBox(height: 12),
+              _Field(
                 controller: _descripcionController,
-                decoration: InputDecoration(
-                  labelText: 'Descripción (opcional)',
-                  hintText: 'Describe tu meta...',
-                  prefixIcon: const Icon(
-                    Icons.description_outlined,
-                    color: Color(0xFF6B7280),
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: selectedColor, width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
+                label: 'Descripción (opcional)',
+                hint: 'Describe tu meta...',
+                prefixIcon: const Icon(Icons.description_outlined, color: _C.textSecondary, size: 20),
                 maxLines: 3,
               ),
               const SizedBox(height: 24),
-              // Monto y fecha
-              const Text(
-                'Objetivo',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                  letterSpacing: -0.3,
-                ),
-              ),
+              const _SectionLabel('Objetivo'),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _montoObjetivoController,
-                decoration: InputDecoration(
-                  labelText: 'Monto objetivo *',
-                  hintText: '0',
-                  prefixIcon: Icon(
-                    Icons.attach_money_rounded,
-                    color: selectedColor,
-                  ),
-                  suffixText: 'COP',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: selectedColor, width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
+              _Field(
+                controller: _montoController,
+                label: 'Monto objetivo',
+                hint: '0',
+                prefixIcon: Icon(Icons.attach_money_rounded, color: metaColor, size: 20),
+                suffix: Text(
+                  'COP',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, color: _C.textSecondary),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                 ],
-                onChanged: (value) => setState(() {}),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'El monto objetivo es requerido';
-                  }
-                  final monto = double.tryParse(value);
-                  if (monto == null || monto <= 0) {
-                    return 'Ingresa un monto válido';
-                  }
+                onChanged: (_) => setState(() {}),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'El monto es requerido';
+                  final m = double.tryParse(v);
+                  if (m == null || m <= 0) return 'Ingresa un monto válido';
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              GestureDetector(
+              const SizedBox(height: 12),
+              _DateField(
+                fecha: _fechaObjetivo,
+                accentColor: metaColor,
                 onTap: () async {
-                  final fecha = await showDatePicker(
+                  final f = await showDatePicker(
                     context: context,
                     initialDate: _fechaObjetivo,
                     firstDate: DateTime.now(),
                     lastDate: DateTime.now().add(const Duration(days: 3650)),
                   );
-                  if (fecha != null) {
-                    setState(() {
-                      _fechaObjetivo = fecha;
-                    });
-                  }
+                  if (f != null) setState(() => _fechaObjetivo = f);
                 },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today_rounded,
-                        color: selectedColor,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Fecha objetivo',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF6B7280),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              DateFormat('dd/MM/yyyy').format(_fechaObjetivo),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1F2937),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                        color: Colors.grey[400],
-                      ),
-                    ],
-                  ),
-                ),
               ),
               const SizedBox(height: 24),
-              // Personalización
-              const Text(
-                'Personalización',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
+              const _SectionLabel('Personalización'),
+              const SizedBox(height: 16),
+              Text(
                 'Color',
-                style: TextStyle(
-                  fontSize: 14,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B7280),
+                  color: _C.textSecondary,
                 ),
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: _colores.map((color) {
-                  final isSelected = _selectedColor == color.hex;
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedColor = color.hex;
-                      });
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: color.color,
-                        shape: BoxShape.circle,
-                        border: isSelected
-                            ? Border.all(color: Colors.white, width: 3)
-                            : Border.all(color: Colors.grey[300]!, width: 2),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: color.color.withOpacity(0.4),
-                                  blurRadius: 8,
-                                  spreadRadius: 2,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: isSelected
-                          ? const Icon(Icons.check, color: Colors.white, size: 20)
-                          : null,
-                    ),
-                  );
-                }).toList(),
+              const SizedBox(height: 10),
+              _ColorPicker(
+                selected: _selectedColor,
+                onSelect: (hex) => setState(() => _selectedColor = hex),
               ),
-              const SizedBox(height: 24),
-              const Text(
+              const SizedBox(height: 20),
+              Text(
                 'Icono',
-                style: TextStyle(
-                  fontSize: 14,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B7280),
+                  color: _C.textSecondary,
                 ),
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: _iconos.map((icono) {
-                  final isSelected = _selectedIcono == icono.key;
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedIcono = icono.key;
-                      });
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? selectedColor.withOpacity(0.1)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: isSelected
-                            ? Border.all(color: selectedColor, width: 2)
-                            : Border.all(color: const Color(0xFFE5E7EB)),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: selectedColor.withOpacity(0.2),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Icon(
-                        icono.iconData,
-                        color: isSelected ? selectedColor : const Color(0xFF6B7280),
-                        size: 26,
-                      ),
-                    ),
-                  );
-                }).toList(),
+              const SizedBox(height: 10),
+              _IconGrid(
+                selected: _selectedIcono,
+                accentColor: metaColor,
+                onSelect: (key) => setState(() => _selectedIcono = key),
               ),
               const SizedBox(height: 32),
-              // Botón crear
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        side: const BorderSide(
-                          color: Color(0xFFE5E7EB),
-                          width: 2,
-                        ),
-                        foregroundColor: const Color(0xFF6B7280),
-                      ),
-                      child: const Text(
-                        'Cancelar',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            selectedColor.withOpacity(0.8),
-                            selectedColor,
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: selectedColor.withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: _handleSubmit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: Text(
-                          isEdit ? 'Guardar Cambios' : 'Crear Meta',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              _SubmitRow(
+                isEdit:       isEdit,
+                isSubmitting: _isSubmitting,
+                onSubmit:     _handleSubmit,
+                onCancel:     () => Navigator.of(context).pop(),
               ),
               const SizedBox(height: 24),
             ],
@@ -519,49 +284,37 @@ class _CreateMetaScreenState extends ConsumerState<CreateMetaScreen> {
 
   void _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
-
+    setState(() => _isSubmitting = true);
     try {
       final request = CreateMetaRequest(
-        nombre: _nombreController.text.trim(),
-        descripcion: _descripcionController.text.trim().isEmpty
+        nombre:        _nombreController.text.trim(),
+        descripcion:   _descripcionController.text.trim().isEmpty
             ? null
             : _descripcionController.text.trim(),
-        montoObjetivo: double.parse(_montoObjetivoController.text),
+        montoObjetivo: double.parse(_montoController.text),
         fechaObjetivo: _fechaObjetivo,
-        color: _selectedColor,
-        icono: _selectedIcono,
+        color:         _selectedColor,
+        icono:         _selectedIcono,
       );
-
-      if (widget.metaToEdit != null) {
+      if (isEdit) {
         await ref
             .read(metasNotifierProvider.notifier)
             .updateMeta(widget.metaToEdit!.id, request);
       } else {
         await ref.read(metasNotifierProvider.notifier).create(request);
       }
-
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    isEdit
-                        ? 'Meta actualizada exitosamente'
-                        : 'Meta creada exitosamente',
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFF10B981),
+            content: Row(children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 12),
+              Text(isEdit ? 'Meta actualizada' : 'Meta creada'),
+            ]),
+            backgroundColor: _C.success,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             margin: const EdgeInsets.all(16),
           ),
         );
@@ -570,311 +323,509 @@ class _CreateMetaScreenState extends ConsumerState<CreateMetaScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text('Error: ${e.toString()}'),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red,
+            content: Row(children: [
+              const Icon(Icons.error_outline, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Error: ${e.toString()}')),
+            ]),
+            backgroundColor: const Color(0xFFEF4444),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             margin: const EdgeInsets.all(16),
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
+}
 
-  Widget _buildPreviewCard(
-    Color color,
-    NumberFormat formato,
-    double montoObjetivo,
-    int diasRestantes,
-  ) {
-    final nombre = _nombreController.text.isEmpty
-        ? 'Vista previa'
-        : _nombreController.text;
-    final monto = montoObjetivo > 0
-        ? formato.format(montoObjetivo)
-        : '0';
-    
-    // Información de la meta original si se está editando
-    final metaOriginal = widget.metaToEdit;
+// ── Preview card ───────────────────────────────────────────────────────────────
+class _PreviewCard extends StatelessWidget {
+  final String nombre;
+  final Color metaColor;
+  final String? icono;
+  final double monto;
+  final NumberFormat fmt;
+  final int dias;
+  final bool isEdit;
+  final Meta? metaOriginal;
+
+  const _PreviewCard({
+    required this.nombre,
+    required this.metaColor,
+    required this.icono,
+    required this.monto,
+    required this.fmt,
+    required this.dias,
+    required this.isEdit,
+    required this.metaOriginal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = nombre.isEmpty ? 'Vista previa' : nombre;
     final montoActual = metaOriginal?.montoActual ?? 0.0;
-    final porcentaje = montoObjetivo > 0 
-        ? (montoActual / montoObjetivo * 100).clamp(0, 100)
+    final porcentaje  = monto > 0
+        ? (montoActual / monto * 100).clamp(0.0, 100.0)
         : 0.0;
-    final estaCompletada = montoActual >= montoObjetivo;
+    final faltante   = (monto - montoActual).clamp(0.0, double.infinity);
+    final completada = montoActual >= monto && monto > 0;
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        color: _C.surface,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                isEdit ? 'Editando Meta' : 'Vista Previa',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isEdit ? color : const Color(0xFF6B7280),
+              Container(width: 4, color: metaColor),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: metaColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(_iconData(icono), color: metaColor, size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  displayName,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: _C.textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  monto > 0 ? fmt.format(monto) : '\$0',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: metaColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (dias > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: metaColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '$dias d',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: metaColor,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (isEdit && metaOriginal != null) ...[
+                        const SizedBox(height: 14),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Progreso',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: _C.textSecondary),
+                            ),
+                            Text(
+                              '${porcentaje.toStringAsFixed(1)}%',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: completada ? _C.success : metaColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: porcentaje / 100,
+                            minHeight: 5,
+                            backgroundColor: _C.border,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              completada ? _C.success : metaColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Ahorrado: ${fmt.format(montoActual)}',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: _C.textSecondary),
+                            ),
+                            Text(
+                              'Faltante: ${fmt.format(faltante)}',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: _C.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-              if (isEdit)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Modo edición',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: color,
-                    ),
-                  ),
-                ),
             ],
           ),
-          const SizedBox(height: 20),
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color.withOpacity(0.8), color],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.4),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Icon(
-              _selectedIcono != null
-                  ? _getIconData(_selectedIcono!)
-                  : Icons.flag_rounded,
-              color: Colors.white,
-              size: 40,
-            ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Section label ──────────────────────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Text(
+        text,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: _C.textPrimary,
+        ),
+      );
+}
+
+// ── Reusable field ─────────────────────────────────────────────────────────────
+class _Field extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final Widget? prefixIcon;
+  final Widget? suffix;
+  final int? maxLines;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+  final void Function(String)? onChanged;
+  final String? Function(String?)? validator;
+
+  const _Field({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    this.prefixIcon,
+    this.suffix,
+    this.maxLines = 1,
+    this.keyboardType,
+    this.inputFormatters,
+    this.onChanged,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) => TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: prefixIcon,
+          suffix: suffix,
+          filled: true,
+          fillColor: _C.surface,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: _C.border),
           ),
-          const SizedBox(height: 16),
-          Text(
-            nombre,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1F2937),
-            ),
-            textAlign: TextAlign.center,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: _C.border),
           ),
-          const SizedBox(height: 8),
-          Text(
-            monto,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: _C.accent, width: 1.5),
           ),
-          if (isEdit && metaOriginal != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(12),
-              ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFEF4444)),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
+        onChanged: onChanged,
+        validator: validator,
+      );
+}
+
+// ── Date field ─────────────────────────────────────────────────────────────────
+class _DateField extends StatelessWidget {
+  final DateTime fecha;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _DateField({
+    required this.fecha,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: _C.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _C.border),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.calendar_today_rounded, color: accentColor, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Progreso actual',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
-                      Text(
-                        '${porcentaje.toStringAsFixed(1)}%',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: estaCompletada
-                              ? const Color(0xFF10B981)
-                              : color,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: porcentaje / 100,
-                      minHeight: 8,
-                      backgroundColor: Colors.grey[200],
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        estaCompletada ? const Color(0xFF10B981) : color,
-                      ),
+                  Text(
+                    'Fecha objetivo',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: _C.textSecondary,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Ahorrado',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
-                          Text(
-                            formato.format(montoActual),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: estaCompletada
-                                  ? const Color(0xFF10B981)
-                                  : color,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          const Text(
-                            'Faltante',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
-                          Text(
-                            formato.format((montoObjetivo - montoActual).clamp(0, double.infinity)),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: estaCompletada
-                                  ? const Color(0xFF10B981)
-                                  : const Color(0xFF6B7280),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  const SizedBox(height: 2),
+                  Text(
+                    DateFormat('dd/MM/yyyy').format(fecha),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _C.textPrimary,
+                    ),
                   ),
                 ],
               ),
             ),
+            const Icon(Icons.chevron_right_rounded, color: _C.textSecondary, size: 20),
           ],
-          if (diasRestantes > 0) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '$diasRestantes días restantes',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
-            ),
-          ] else if (diasRestantes <= 0 && !isEdit) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Fecha vencida',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.orange,
-                ),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
+}
 
-  IconData _getIconData(String iconName) {
-    final iconMap = {
-      'flag': Icons.flag_rounded,
-      'home': Icons.home_rounded,
-      'directions_car': Icons.directions_car_rounded,
-      'flight': Icons.flight_rounded,
-      'shopping_bag': Icons.shopping_bag_rounded,
-      'school': Icons.school_rounded,
-      'favorite': Icons.favorite_rounded,
-      'savings': Icons.savings_rounded,
-      'work': Icons.work_rounded,
-      'celebration': Icons.celebration_rounded,
-      'star': Icons.star_rounded,
-      'card_giftcard': Icons.card_giftcard_rounded,
-      'beach_access': Icons.beach_access_rounded,
-      'fitness_center': Icons.fitness_center_rounded,
-      'restaurant': Icons.restaurant_rounded,
-      'music_note': Icons.music_note_rounded,
-    };
-    return iconMap[iconName] ?? Icons.flag_rounded;
+// ── Color picker ───────────────────────────────────────────────────────────────
+class _ColorPicker extends StatelessWidget {
+  final String? selected;
+  final void Function(String) onSelect;
+
+  const _ColorPicker({required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: _kColores.map((c) {
+        final isSel = selected == c.hex;
+        return GestureDetector(
+          onTap: () => onSelect(c.hex),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: c.color,
+              shape: BoxShape.circle,
+              border: isSel
+                  ? Border.all(color: _C.surface, width: 2.5)
+                  : Border.all(color: _C.border, width: 1.5),
+              boxShadow: isSel
+                  ? [
+                      BoxShadow(
+                        color: c.color.withValues(alpha: 0.4),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : null,
+            ),
+            child: isSel
+                ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
+                : null,
+          ),
+        );
+      }).toList(),
+    );
   }
 }
 
-class ColorOption {
-  final String hex;
-  final String name;
-  final Color color;
+// ── Icon grid ──────────────────────────────────────────────────────────────────
+class _IconGrid extends StatelessWidget {
+  final String? selected;
+  final Color accentColor;
+  final void Function(String) onSelect;
 
-  ColorOption(this.hex, this.name, this.color);
+  const _IconGrid({
+    required this.selected,
+    required this.accentColor,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 4,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      childAspectRatio: 1.0,
+      children: _kIconos.map((o) {
+        final isSel = selected == o.key;
+        return GestureDetector(
+          onTap: () => onSelect(o.key),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            decoration: BoxDecoration(
+              color: isSel ? accentColor.withValues(alpha: 0.1) : _C.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSel ? accentColor : _C.border,
+                width: isSel ? 1.5 : 1,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  o.iconData,
+                  color: isSel ? accentColor : _C.textSecondary,
+                  size: 22,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  o.name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 9,
+                    fontWeight: isSel ? FontWeight.w600 : FontWeight.w500,
+                    color: isSel ? accentColor : _C.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
 }
 
-class IconOption {
-  final String key;
-  final String name;
-  final IconData iconData;
+// ── Submit row ─────────────────────────────────────────────────────────────────
+class _SubmitRow extends StatelessWidget {
+  final bool isEdit;
+  final bool isSubmitting;
+  final VoidCallback onSubmit;
+  final VoidCallback onCancel;
 
-  IconOption(this.key, this.name, this.iconData);
+  const _SubmitRow({
+    required this.isEdit,
+    required this.isSubmitting,
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: onCancel,
+            child: Container(
+              height: 50,
+              decoration: BoxDecoration(
+                color: _C.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _C.border),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                'Cancelar',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: _C.textSecondary,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: GestureDetector(
+            onTap: isSubmitting ? null : onSubmit,
+            child: Container(
+              height: 50,
+              decoration: BoxDecoration(
+                color: isSubmitting
+                    ? _C.accent.withValues(alpha: 0.6)
+                    : _C.accent,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(
+                      isEdit ? 'Guardar Cambios' : 'Crear Meta',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

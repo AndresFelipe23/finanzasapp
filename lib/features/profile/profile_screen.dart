@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/auth_models.dart';
+import '../../core/theme/neo_bank_theme.dart';
 import '../../core/utils/monedas_constants.dart';
 import '../../features/auth/auth_service.dart';
 import '../../core/api/api_client.dart';
 import '../auth/login_screen.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   final UserResponse user;
 
   const ProfileScreen({super.key, required this.user});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late AuthService authService;
   late UserResponse _currentUser;
   bool _isEditingMoneda = false;
@@ -43,7 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _logout() async {
     await authService.logout();
     if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,
       );
@@ -55,9 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       barrierDismissible: true,
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
@@ -312,6 +312,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildFechaNacimientoCard(),
                     const SizedBox(height: 12),
                     _buildMonedaCard(),
+                    const SizedBox(height: 24),
+                    // Sección de Apariencia
+                    const Text(
+                      'Apariencia',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1F2937),
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTemaCard(),
                     const SizedBox(height: 20),
                     // Botón de cerrar sesión
                     Container(
@@ -359,6 +372,147 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTemaCard() {
+    final mode = ref.watch(themeModeProvider);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.dark_mode_outlined,
+                  color: Color(0xFF10B981),
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tema de la App',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Elige cómo se ve Financially',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1F2937),
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _temaOption(
+                mode: ThemeMode.light,
+                current: mode,
+                icon: Icons.light_mode_outlined,
+                label: 'Claro',
+              ),
+              const SizedBox(width: 8),
+              _temaOption(
+                mode: ThemeMode.dark,
+                current: mode,
+                icon: Icons.dark_mode_outlined,
+                label: 'Oscuro',
+              ),
+              const SizedBox(width: 8),
+              _temaOption(
+                mode: ThemeMode.system,
+                current: mode,
+                icon: Icons.brightness_auto_outlined,
+                label: 'Sistema',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _temaOption({
+    required ThemeMode mode,
+    required ThemeMode current,
+    required IconData icon,
+    required String label,
+  }) {
+    const accent = Color(0xFF10B981);
+    final selected = mode == current;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => ref.read(themeModeProvider.notifier).setMode(mode),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: selected
+                ? accent.withValues(alpha: 0.1)
+                : const Color(0xFFF9FAFB),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? accent : Colors.grey[200]!,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: selected ? accent : const Color(0xFF6B7280),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? accent : const Color(0xFF6B7280),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -452,18 +606,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: DropdownButtonFormField<String>(
                               initialValue: _selectedMoneda,
                               decoration: const InputDecoration(
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                                 border: InputBorder.none,
                               ),
-                              items: MonedasConstants.codigosUnicos.map((codigo) {
-                                final monedaInfo = MonedasConstants.getMonedaPorCodigo(codigo);
-                                final paises = MonedasConstants.getMonedasPorPais(monedaInfo?.pais ?? '');
-                                final displayText = paises.length > 1 
+                              items: MonedasConstants.codigosUnicos.map((
+                                codigo,
+                              ) {
+                                final monedaInfo =
+                                    MonedasConstants.getMonedaPorCodigo(codigo);
+                                final paises =
+                                    MonedasConstants.getMonedasPorPais(
+                                      monedaInfo?.pais ?? '',
+                                    );
+                                final displayText = paises.length > 1
                                     ? '$codigo (${paises.map((m) => m.pais).join(', ')})'
-                                    : monedaInfo != null 
-                                        ? '${monedaInfo.codigo} - ${monedaInfo.pais}'
-                                        : codigo;
-                                
+                                    : monedaInfo != null
+                                    ? '${monedaInfo.codigo} - ${monedaInfo.pais}'
+                                    : codigo;
+
                                 return DropdownMenuItem<String>(
                                   value: codigo,
                                   child: Text(
@@ -489,7 +652,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 fontWeight: FontWeight.w500,
                                 color: Color(0xFF1F2937),
                               ),
-                              icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF6B7280), size: 20),
+                              icon: const Icon(
+                                Icons.arrow_drop_down,
+                                color: Color(0xFF6B7280),
+                                size: 20,
+                              ),
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
@@ -501,7 +668,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onPressed: () {
                                   setState(() {
                                     _isEditingMoneda = false;
-                                    _selectedMoneda = _currentUser.monedaPredeterminada ?? 'COP';
+                                    _selectedMoneda =
+                                        _currentUser.monedaPredeterminada ??
+                                        'COP';
                                   });
                                 },
                                 child: const Text(
@@ -515,7 +684,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF10B981),
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
@@ -657,7 +829,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _fechaNacimiento ?? DateTime.now().subtract(const Duration(days: 365 * 18)),
+      initialDate:
+          _fechaNacimiento ??
+          DateTime.now().subtract(const Duration(days: 365 * 18)),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       locale: const Locale('es', 'ES'),
@@ -753,7 +927,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onPressed: () {
                               setState(() {
                                 _isEditingTelefono = true;
-                                _telefonoController.text = _currentUser.telefono ?? '';
+                                _telefonoController.text =
+                                    _currentUser.telefono ?? '';
                               });
                             },
                           ),
@@ -770,11 +945,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               hintText: 'Ej: +50212345678',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey[300]!),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey[300]!),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -797,7 +976,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onPressed: () {
                                   setState(() {
                                     _isEditingTelefono = false;
-                                    _telefonoController.text = _currentUser.telefono ?? '';
+                                    _telefonoController.text =
+                                        _currentUser.telefono ?? '';
                                   });
                                 },
                                 child: const Text(
@@ -928,7 +1108,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     _formatDate(_fechaNacimiento),
@@ -955,7 +1136,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onPressed: () {
                                   setState(() {
                                     _isEditingFechaNacimiento = false;
-                                    _fechaNacimiento = _currentUser.fechaNacimiento;
+                                    _fechaNacimiento =
+                                        _currentUser.fechaNacimiento;
                                   });
                                 },
                                 child: const Text(

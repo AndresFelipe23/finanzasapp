@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Movimientos - Patrimonio</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-on-surface": "#9b9d9e",
+                    "primary": "#0546ed",
+                    "secondary": "#006949",
+                    "on-tertiary": "#f9efff",
+                    "surface-variant": "#dadddf",
+                    "secondary-fixed-dim": "#53eeb2",
+                    "error": "#b41340",
+                    "background": "#f5f6f7",
+                    "on-error-container": "#510017",
+                    "on-tertiary-container": "#41008c",
+                    "on-tertiary-fixed": "#22004f",
+                    "outline-variant": "#abadae",
+                    "surface-container-high": "#e0e3e4",
+                    "outline": "#757778",
+                    "tertiary-fixed-dim": "#b78eff",
+                    "on-surface": "#2c2f30",
+                    "secondary-fixed": "#64fcbf",
+                    "tertiary-dim": "#6800d8",
+                    "on-primary-fixed-variant": "#00207d",
+                    "on-primary-fixed": "#000000",
+                    "on-secondary-fixed": "#004932",
+                    "tertiary": "#751fe7",
+                    "secondary-dim": "#005b3f",
+                    "surface-container-highest": "#dadddf",
+                    "primary-dim": "#003cd3",
+                    "on-tertiary-fixed-variant": "#4c00a1",
+                    "error-dim": "#a70138",
+                    "inverse-surface": "#0c0f10",
+                    "on-primary": "#f2f1ff",
+                    "secondary-container": "#64fcbf",
+                    "surface-dim": "#d1d5d7",
+                    "on-secondary-fixed-variant": "#006949",
+                    "surface-container-lowest": "#ffffff",
+                    "on-error": "#ffefef",
+                    "surface-bright": "#f5f6f7",
+                    "on-background": "#2c2f30",
+                    "surface-tint": "#0546ed",
+                    "on-surface-variant": "#595c5d",
+                    "primary-fixed-dim": "#718bff",
+                    "surface-container": "#e6e8ea",
+                    "error-container": "#f74b6d",
+                    "surface-container-low": "#eff1f2",
+                    "primary-fixed": "#849aff",
+                    "on-secondary": "#c8ffe1",
+                    "tertiary-fixed": "#c29fff",
+                    "primary-container": "#849aff",
+                    "on-secondary-container": "#005e41",
+                    "on-primary-container": "#001967",
+                    "surface": "#f5f6f7",
+                    "inverse-primary": "#6d88ff",
+                    "tertiary-container": "#c29fff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "1.5rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Plus Jakarta Sans"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl shadow-sm dark:shadow-none fixed top-0 sticky z-50 flex justify-between items-center w-full px-6 py-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden">
+<img alt="Perfil" data-alt="professional male portrait with soft studio lighting and clean blurred background for user profile avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHnb6K5fKitCLAsq98xmibYJ2qL8UydTJXkKemKDhotTFmRRPlRH5tTWz2xbEbTTrFD4VvMMMa1VEvxeeQYT4Z8npRcEbTmjX-kcrSSX3aYRmevK2YqPbhInR6QnQV1Gi8x77ORP3lc3IvEoDfVzieRMzirb2ZmncHU-cBMdcSsRoURt4HFvb7omH-4IEPN34mvK6M600-RRoplnBiSwlz4A9ylf5T8U35TWyIjv7lkiO8MZikQzwBWe2JVjZ4ws1cNP6TwH9kF6CO"/>
+</div>
+<span class="text-xl font-bold text-slate-900 dark:text-slate-50">Patrimonio</span>
+</div>
+<button class="text-blue-600 dark:text-blue-400 hover:opacity-80 transition-opacity scale-95 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+</header>
+<main class="px-6 py-8 space-y-8 max-w-4xl mx-auto">
+<!-- Page Title & Search -->
+<section class="space-y-6">
+<h1 class="text-[1.75rem] font-semibold text-on-surface tracking-tight">Movimientos</h1>
+<div class="relative group">
+<div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-outline">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</div>
+<input class="w-full bg-surface-container-low border-none rounded-xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-primary/20 text-body-lg placeholder:text-outline transition-all" placeholder="Buscar transacciones..." type="text"/>
+</div>
+<!-- Horizontal Filter Scroll -->
+<div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+<button class="bg-primary text-on-primary px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap shadow-lg shadow-primary/20">Este Mes</button>
+<button class="bg-surface-container-highest text-on-surface-variant px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap hover:bg-surface-container-high transition-colors">Octubre</button>
+<button class="bg-surface-container-highest text-on-surface-variant px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap hover:bg-surface-container-high transition-colors">Septiembre</button>
+<button class="bg-surface-container-highest text-on-surface-variant px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap flex items-center gap-2 hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="filter_list">filter_list</span>
+                    Filtros
+                </button>
+</div>
+</section>
+<!-- Featured Transaction Highlight (Asymmetric Layout) -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-primary-container p-8 rounded-xl relative overflow-hidden flex flex-col justify-between h-64 shadow-xl shadow-primary/10">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+<div>
+<span class="text-on-primary-container/60 text-[10px] font-bold uppercase tracking-widest">Balance Mensual</span>
+<h2 class="text-on-primary-container text-4xl font-bold mt-1 tracking-tighter">$4.250.000</h2>
+</div>
+<div class="flex gap-2">
+<div class="bg-white/20 backdrop-blur-md px-4 py-2 rounded-lg flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary-fixed text-[18px]" data-icon="trending_up">trending_up</span>
+<span class="text-on-primary-container text-sm font-semibold">+12%</span>
+</div>
+</div>
+</div>
+<div class="bg-secondary-container p-8 rounded-xl flex flex-col justify-between h-64 shadow-xl shadow-secondary/10">
+<div>
+<span class="text-on-secondary-container/60 text-[10px] font-bold uppercase tracking-widest">Meta de Ahorro</span>
+<h2 class="text-on-secondary-container text-4xl font-bold mt-1 tracking-tighter">$1.800.000</h2>
+</div>
+<div class="space-y-3">
+<div class="w-full bg-white/30 h-2.5 rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-[72%] rounded-full"></div>
+</div>
+<p class="text-on-secondary-container text-xs font-medium">72% de tu meta "Viaje Medellín"</p>
+</div>
+</div>
+</section>
+<!-- Transaction List -->
+<section class="space-y-4">
+<div class="flex justify-between items-center px-2">
+<h3 class="text-lg font-bold text-on-surface">Movimientos Recientes</h3>
+<button class="text-primary text-sm font-bold">Ver todos</button>
+</div>
+<div class="space-y-1">
+<!-- Transaction Item -->
+<div class="bg-surface-container-lowest p-5 rounded-xl flex items-center justify-between group hover:bg-white transition-all duration-300">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600">
+<span class="material-symbols-outlined text-[28px]" data-icon="restaurant">restaurant</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Restaurante El Cielo</p>
+<p class="text-xs text-on-surface-variant font-medium">Alimentación • Hoy, 2:30 PM</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-xl font-extrabold text-on-surface tracking-tighter">- $85.400</p>
+<p class="text-[10px] font-bold text-on-error uppercase">Cargo</p>
+</div>
+</div>
+<!-- Transaction Item -->
+<div class="bg-surface-container-low p-5 rounded-xl flex items-center justify-between group hover:bg-white transition-all duration-300">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined text-[28px]" data-icon="commute">commute</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Uber Trip</p>
+<p class="text-xs text-on-surface-variant font-medium">Transporte • Ayer</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-xl font-extrabold text-on-surface tracking-tighter">- $12.500</p>
+<p class="text-[10px] font-bold text-on-error uppercase">Cargo</p>
+</div>
+</div>
+<!-- Transaction Item -->
+<div class="bg-surface-container-lowest p-5 rounded-xl flex items-center justify-between group hover:bg-white transition-all duration-300">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
+<span class="material-symbols-outlined text-[28px]" data-icon="movie">movie</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Netflix Subscription</p>
+<p class="text-xs text-on-surface-variant font-medium">Ocio • 28 Oct</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-xl font-extrabold text-on-surface tracking-tighter">- $45.900</p>
+<p class="text-[10px] font-bold text-on-error uppercase">Cargo</p>
+</div>
+</div>
+<!-- Transaction Item (Credit) -->
+<div class="bg-surface-container-low p-5 rounded-xl flex items-center justify-between group hover:bg-white transition-all duration-300 border-l-4 border-secondary-fixed">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[28px]" data-icon="payments">payments</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Nómina Quincenal</p>
+<p class="text-xs text-on-surface-variant font-medium">Salario • 25 Oct</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-xl font-extrabold text-secondary tracking-tighter">+ $2.100.000</p>
+<p class="text-[10px] font-bold text-secondary uppercase">Abono</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Categorías Personalizadas Grid -->
+<section class="space-y-6">
+<div class="flex justify-between items-center px-2">
+<h3 class="text-lg font-bold text-on-surface">Categorías Personalizadas</h3>
+<button class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-[20px]" data-icon="add">add</span>
+</button>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+<div class="bg-surface-container-lowest p-6 rounded-xl text-center space-y-3 hover:shadow-lg transition-all border border-transparent hover:border-primary/10">
+<div class="w-12 h-12 bg-pink-100 text-pink-600 rounded-full flex items-center justify-center mx-auto">
+<span class="material-symbols-outlined" data-icon="favorite">favorite</span>
+</div>
+<p class="text-sm font-bold text-on-surface">Salud</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl text-center space-y-3 hover:shadow-lg transition-all border border-transparent hover:border-primary/10">
+<div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+<span class="material-symbols-outlined" data-icon="home_work">home_work</span>
+</div>
+<p class="text-sm font-bold text-on-surface">Hogar</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl text-center space-y-3 hover:shadow-lg transition-all border border-transparent hover:border-primary/10">
+<div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+<span class="material-symbols-outlined" data-icon="fitness_center">fitness_center</span>
+</div>
+<p class="text-sm font-bold text-on-surface">Gimnasio</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl text-center space-y-3 hover:shadow-lg transition-all border border-transparent hover:border-primary/10">
+<div class="w-12 h-12 bg-cyan-100 text-cyan-600 rounded-full flex items-center justify-center mx-auto">
+<span class="material-symbols-outlined" data-icon="school">school</span>
+</div>
+<p class="text-sm font-bold text-on-surface">Estudio</p>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.04)] rounded-t-[1.5rem] z-50">
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-blue-500 transition-all">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-plus-jakarta-sans text-[10px] font-bold uppercase tracking-wider mt-1">Inicio</span>
+</div>
+<div class="flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20 rounded-2xl px-3 py-1.5">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span class="font-plus-jakarta-sans text-[10px] font-bold uppercase tracking-wider mt-1">Cuentas</span>
+</div>
+<div class="flex flex-col items-center justify-center -mt-12">
+<button class="w-14 h-14 bg-primary text-white rounded-full shadow-xl shadow-primary/40 flex items-center justify-center active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-3xl" data-icon="add">add</span>
+</button>
+<span class="font-plus-jakarta-sans text-[10px] font-bold uppercase tracking-wider mt-2 text-primary">Añadir</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-blue-500 transition-all">
+<span class="material-symbols-outlined" data-icon="stars">stars</span>
+<span class="font-plus-jakarta-sans text-[10px] font-bold uppercase tracking-wider mt-1">Metas</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-blue-500 transition-all">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-plus-jakarta-sans text-[10px] font-bold uppercase tracking-wider mt-1">Perfil</span>
+</div>
+</nav>
+</body></html>
