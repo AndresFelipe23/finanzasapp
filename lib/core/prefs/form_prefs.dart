@@ -36,4 +36,8 @@ class FormPrefs {
   /// Cuenta asociada a una tarjeta por sus 4 últimos dígitos (compras
   /// registradas automáticamente).
   static String tarjeta(String ultimos4) => 'tarjeta_$ultimos4';
+
+  /// Cuenta asociada a la app que avisó un movimiento automático ("Nequi").
+  static String fuente(String nombre) =>
+      'fuente_${nombre.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}';
 }

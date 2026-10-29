@@ -27,6 +27,7 @@ class CompraAutomatica {
 
   static const _storage = FlutterSecureStorage();
   static const _activoKey = 'comprasAutomaticas';
+  static const _ingresosKey = 'ingresosAutomaticos';
   static const _registroKey = 'comprasDetectadas';
   static const _ajustes = MethodChannel('financially/compras_ajustes');
   static final _money = NumberFormat.currency(symbol: '\$', decimalDigits: 0, locale: 'es_CO');
@@ -48,6 +49,24 @@ class CompraAutomatica {
       await _storage.write(key: _activoKey, value: '$v');
     } catch (_) {
       // Sin almacenamiento el registro automático queda apagado
+    }
+  }
+
+  /// También el dinero que entra ("Recibiste $50.000 de…"). Encendido por
+  /// defecto mientras el registro automático esté activo.
+  static Future<bool> ingresosActivos() async {
+    try {
+      return await _storage.read(key: _ingresosKey) != 'false';
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> setIngresosActivos(bool v) async {
+    try {
+      await _storage.write(key: _ingresosKey, value: '$v');
+    } catch (_) {
+      // Queda con el valor por defecto
     }
   }
 
@@ -108,13 +127,22 @@ class CompraAutomatica {
     final compra = leerCompra(paquete, titulo, texto);
     final fuente = compra?.fuente ?? paquete;
     if (compra == null) {
-      await _anotar(fuente, '$titulo · $texto', 'No parece una compra');
+      await _anotar(fuente, '$titulo · $texto', 'No parece una compra ni un ingreso');
+      return;
+    }
+    if (compra.ingreso && !await ingresosActivos()) {
+      await _anotar(fuente, '$titulo · $texto', 'Ingreso sin registrar (apagado)');
       return;
     }
 
+    final tipo = compra.ingreso ? 'INGRESO' : 'GASTO';
+    final tipoLabel = compra.ingreso ? 'Ingreso' : 'Gasto';
     final notif = NotificationService.instance;
     final montoTxt = _money.format(compra.monto);
-    final lugar = compra.comercio ?? compra.fuente ?? 'compra con tarjeta';
+    // "en Éxito" para una compra, "de Juan Perez" para un ingreso
+    final lugar = compra.comercio == null
+        ? (compra.fuente ?? (compra.ingreso ? 'dinero recibido' : 'compra con tarjeta'))
+        : '${compra.ingreso ? 'de' : 'en'} ${compra.comercio}';
     final api = ApiClient();
     if (await api.readRefreshToken() == null && !await api.hasToken()) {
       await _anotar(fuente, '$titulo · $texto', 'Sin sesión iniciada');
@@ -130,13 +158,14 @@ class CompraAutomatica {
         ),
       ).wait;
 
-      // ¿Ya está? (registrada a mano, o avisada por dos apps)
+      // ¿Ya está? Registrada a mano, avisada por dos apps, o una
+      // transferencia entre tus cuentas (Bancolombia → Nequi avisa
+      // "Recibiste…" y no es un ingreso nuevo)
       final yaEsta = trans.any((t) =>
-          t.tipoNombre == 'GASTO' &&
           (t.monto - compra.monto).abs() < 0.01 &&
           t.fechaTransaccion.difference(cuando).inMinutes.abs() <= 10);
       if (yaEsta) {
-        await _anotar(fuente, '$titulo · $texto', 'Ya estaba registrada');
+        await _anotar(fuente, '$titulo · $texto', 'Ya estaba registrado');
         return;
       }
 
@@ -147,8 +176,8 @@ class CompraAutomatica {
       }
       final cuenta = await _cuentaPara(compra, cuentas);
 
-      // Compra en otra moneda (p. ej. US$ en Netflix): se convierte a la de
-      // la cuenta y el valor original queda en las notas
+      // En otra moneda (p. ej. US$ en Netflix): se convierte a la de la
+      // cuenta y el valor original queda en las notas
       var monto = compra.monto;
       String? original;
       if (compra.moneda != null && compra.moneda != cuenta.moneda) {
@@ -159,14 +188,15 @@ class CompraAutomatica {
         }
       }
 
-      // Categoría por el comercio, como la sugerencia por nota del formulario
+      // Categoría por el comercio (o por quién envía el dinero), como la
+      // sugerencia por nota del formulario
       final validas = categoriasAll
-          .where((c) => c.activo && (c.tipo == 'GASTO' || c.tipo == 'AMBOS'))
+          .where((c) => c.activo && (c.tipo == tipo || c.tipo == 'AMBOS'))
           .map((c) => c.id)
           .toSet();
       final categoriaId = compra.comercio == null
           ? null
-          : sugerirCategoriaPorNota(compra.comercio!, 'GASTO', trans, validas);
+          : sugerirCategoriaPorNota(compra.comercio!, tipo, trans, validas);
       final categoria = categoriasAll.where((c) => c.id == categoriaId).firstOrNull;
 
       final notas = [
@@ -179,11 +209,11 @@ class CompraAutomatica {
       final creada = await TransactionsService(api).createTransaction(
         CreateTransaccionRequest(
           cuentaId: cuenta.id,
-          tipoTransaccionId: 2,
+          tipoTransaccionId: compra.ingreso ? 1 : 2,
           categoriaId: categoriaId,
           monto: monto,
           moneda: cuenta.moneda,
-          titulo: compra.comercio ?? 'Compra con tarjeta',
+          titulo: compra.comercio ?? (compra.ingreso ? 'Dinero recibido' : 'Compra con tarjeta'),
           notas: notas,
           fechaTransaccion: cuando,
         ),
@@ -191,22 +221,22 @@ class CompraAutomatica {
 
       await notif.showCompra(
         id: creada.id,
-        titulo: '✓ Gasto de ${_money.format(monto)} · $lugar',
+        titulo: '✓ $tipoLabel de ${_money.format(monto)} · $lugar',
         cuerpo: categoria != null
             ? '${categoria.nombre} · ${cuenta.nombre}. Toca para revisarlo'
             : 'Sin categoría · ${cuenta.nombre}. Toca para elegirla',
         payload: 'financially://${QuickRequest.movimiento}?id=${creada.id}',
       );
       await HomeWidgetSync.update([...trans, creada]);
-      await _anotar(fuente, '$titulo · $texto', 'Registrada: $montoTxt en $lugar');
+      await _anotar(fuente, '$titulo · $texto', '$tipoLabel registrado: $montoTxt $lugar');
     } catch (e) {
-      debugPrint('Compra automática no registrada: $e');
+      debugPrint('Registro automático falló: $e');
       await notif.showCompra(
         id: cuando.millisecondsSinceEpoch ~/ 1000,
-        titulo: 'Compra de $montoTxt en $lugar sin registrar',
-        cuerpo: 'No hubo conexión con Financially. Toca para registrarla',
+        titulo: '$tipoLabel de $montoTxt $lugar sin registrar',
+        cuerpo: 'No hubo conexión con Financially. Toca para registrarlo',
         payload: QuickRequest(
-          QuickRequest.gasto,
+          compra.ingreso ? QuickRequest.ingreso : QuickRequest.gasto,
           monto: compra.monto,
           nota: compra.comercio,
         ).encode(),
@@ -215,28 +245,52 @@ class CompraAutomatica {
     }
   }
 
-  /// La tarjeta que el usuario ya asoció a esos 4 dígitos; si no, la primera
-  /// tarjeta; si no, la última cuenta usada en gastos o la de más saldo.
+  /// Cuenta del movimiento, en este orden: la asociada a esa tarjeta (4
+  /// dígitos); la asociada a la app que avisó (Nequi → tu cuenta Nequi), o
+  /// una cuenta con ese nombre; en compras, la primera tarjeta; y si no, la
+  /// última usada para ese tipo o la de más saldo.
   static Future<Cuenta> _cuentaPara(CompraDetectada compra, List<Cuenta> cuentas) async {
+    Cuenta? porId(int? id) => cuentas.where((c) => c.id == id).firstOrNull;
+
     if (compra.ultimos4 != null) {
-      final id = await FormPrefs.getInt(FormPrefs.tarjeta(compra.ultimos4!));
-      final match = cuentas.where((c) => c.id == id).firstOrNull;
+      final match = porId(await FormPrefs.getInt(FormPrefs.tarjeta(compra.ultimos4!)));
       if (match != null) return match;
     }
-    final tarjeta = cuentas
-        .where((c) => c.tipo == 'TARJETA_CREDITO' || c.tipo == 'TARJETA_DEBITO')
-        .firstOrNull;
-    if (tarjeta != null) return tarjeta;
-    final ultima = await FormPrefs.getInt(FormPrefs.lastAccount('GASTO'));
+    final fuente = compra.fuente;
+    if (fuente != null) {
+      final match = porId(await FormPrefs.getInt(FormPrefs.fuente(fuente))) ??
+          cuentas
+              .where((c) => c.nombre.toLowerCase().contains(fuente.toLowerCase()))
+              .firstOrNull;
+      if (match != null) return match;
+    }
+    if (!compra.ingreso) {
+      final tarjeta = cuentas
+          .where((c) => c.tipo == 'TARJETA_CREDITO' || c.tipo == 'TARJETA_DEBITO')
+          .firstOrNull;
+      if (tarjeta != null) return tarjeta;
+    }
+    final ultima = porId(
+      await FormPrefs.getInt(FormPrefs.lastAccount(compra.ingreso ? 'INGRESO' : 'GASTO')),
+    );
+    if (ultima != null) return ultima;
     double saldo(Cuenta c) => c.saldoActual ?? c.saldoInicial;
-    return cuentas.where((c) => c.id == ultima).firstOrNull ??
-        (cuentas..sort((a, b) => saldo(b).compareTo(saldo(a)))).first;
+    return (cuentas..sort((a, b) => saldo(b).compareTo(saldo(a)))).first;
   }
 
-  /// Al editar un movimiento automático y cambiarle la cuenta, se recuerda
-  /// para esa tarjeta: las próximas compras con ella van a esa cuenta.
+  /// Al editar un movimiento automático y cambiarle la cuenta, se recuerda:
+  /// para esa tarjeta si traía sus 4 dígitos; si no, para la app que avisó
+  /// (Nequi, Daviplata…). Los próximos van a esa cuenta.
   static Future<void> aprenderTarjeta(String? notas, int cuentaId) async {
-    final m = RegExp(r'tarjeta \*(\d{4})').firstMatch(notas ?? '');
-    if (m != null) await FormPrefs.setInt(FormPrefs.tarjeta(m.group(1)!), cuentaId);
+    final partes = (notas ?? '').split(' · ');
+    if (partes.first != 'Registrado automáticamente') return;
+    final m = RegExp(r'^tarjeta \*(\d{4})$');
+    final tarjeta = partes.map(m.firstMatch).whereType<RegExpMatch>().firstOrNull;
+    if (tarjeta != null) {
+      await FormPrefs.setInt(FormPrefs.tarjeta(tarjeta.group(1)!), cuentaId);
+    } else if (partes.length > 1 && !RegExp(r'^[A-Z]{3} ').hasMatch(partes[1])) {
+      // partes[1] es la app ("Nequi"), salvo que sea un monto en otra moneda
+      await FormPrefs.setInt(FormPrefs.fuente(partes[1]), cuentaId);
+    }
   }
 }

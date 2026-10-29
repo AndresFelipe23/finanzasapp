@@ -38,6 +38,12 @@ class PurchaseListenerService : NotificationListenerService() {
             """compr(a|aste|ó)|pag(aste|o|ó)|transacci[oó]n|aprobad|d[eé]bito|cargo|consumo|purchase|paid""",
             RegexOption.IGNORE_CASE,
         )
+        // Dinero que entra ("Recibiste $50.000 de…"): Dart decide si se
+        // registra como ingreso (puede estar apagado en Perfil)
+        private val INGRESO = Regex(
+            """recib|te (envi|transfir|consign)|abono|consign|dep[oó]sit|reembols|devoluci|te lleg""",
+            RegexOption.IGNORE_CASE,
+        )
         private val PROMO = Regex("""descuento|oferta|promo|\d+\s?%|gana|cup[oó]n""", RegexOption.IGNORE_CASE)
 
         // Mismo monto avisado por varias apps (Wallet y el banco): se pasa
@@ -58,7 +64,10 @@ class PurchaseListenerService : NotificationListenerService() {
         val todo = "$titulo $texto"
 
         val monto = MONTO.find(todo)?.value ?: return
-        if (!COMPRA.containsMatchIn(todo) && !esBilletera(sbn.packageName)) return
+        if (!COMPRA.containsMatchIn(todo) &&
+            !INGRESO.containsMatchIn(todo) &&
+            !esBilletera(sbn.packageName)
+        ) return
         if (PROMO.containsMatchIn(todo)) return
 
         val clave = monto.filter { it.isDigit() }

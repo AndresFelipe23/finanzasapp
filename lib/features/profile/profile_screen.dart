@@ -258,7 +258,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   if (CompraAutomatica.soportado)
                     _Row(
                       icon: Icons.contactless_outlined,
-                      label: 'Compras automáticas',
+                      label: 'Registro automático',
                       onTap: () => _push(const ComprasAutomaticasScreen()),
                     ),
                   if (QuickTiles.esAndroid)

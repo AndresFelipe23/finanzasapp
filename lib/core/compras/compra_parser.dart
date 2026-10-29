@@ -5,6 +5,7 @@
 class CompraDetectada {
   const CompraDetectada({
     required this.monto,
+    this.ingreso = false,
     this.moneda,
     this.comercio,
     this.ultimos4,
@@ -13,8 +14,12 @@ class CompraDetectada {
 
   final double monto;
 
+  /// true: dinero que entra ("Recibiste $50.000 de…"), no una compra.
+  final bool ingreso;
+
   /// Solo si el mensaje la dice (USD, MXN…); si no, la de la cuenta.
   final String? moneda;
+  /// Comercio de la compra, o quién envió el dinero en un ingreso.
   final String? comercio;
   final String? ultimos4;
 
@@ -23,7 +28,8 @@ class CompraDetectada {
 
   @override
   String toString() =>
-      'Compra($monto ${moneda ?? ''} en ${comercio ?? '?'} *${ultimos4 ?? '?'} · ${fuente ?? '?'})';
+      '${ingreso ? 'Ingreso' : 'Compra'}($monto ${moneda ?? ''} '
+      '${ingreso ? 'de' : 'en'} ${comercio ?? '?'} *${ultimos4 ?? '?'} · ${fuente ?? '?'})';
 }
 
 const _billeteras = {
@@ -44,10 +50,18 @@ const _fuentes = {
 };
 
 final _monto = RegExp(r'(US\$|\$|COP|USD|MXN)\s?(\d[\d.,]*)', caseSensitive: false);
-final _entrada = RegExp(
-  r'recib|abono|consign|te (envi|transfir)|ingres|reembols|devoluci|retiro',
+// Ni compra ni ingreso: retiros en cajero y pagos a tu propia tarjeta
+final _ignorar = RegExp(
+  r'retiro|recibimos (tu|el) pago|pago (a|de) tu tarjeta|abono a (tu )?tarjeta|pago recibido',
   caseSensitive: false,
 );
+// Dinero que entra
+final _entrada = RegExp(
+  r'recib|te (envi|transfir|consign)|abono|consign|dep[oó]sit|reembols|devoluci|te lleg',
+  caseSensitive: false,
+);
+// Quién lo envió: "de Juan Perez", "desde BANCOLOMBIA"
+final _origen = RegExp(r'\b(?:de|desde)\s+([A-ZÁÉÍÓÚÑ][^\n]*)');
 final _tarjeta = RegExp(
   r'(?:\*+|•+|x{2,}|terminada en|termina en|final(?:izada)? en)\s*(\d{4})',
   caseSensitive: false,
@@ -56,7 +70,7 @@ final _tarjeta = RegExp(
 // ("a NETFLIX"); se corta antes de la fecha, la hora o la tarjeta
 final _comercio = RegExp(r'\b(?:en|a)\s+([A-Z0-9][^\n]*)');
 final _corte = RegExp(
-  r'\s+(con|el|desde|por|hoy|de tu|fecha|a las|tarjeta|t\.?\s?cred|t\.?\s?deb)\b|\s+\d{1,2}[/-]\d{1,2}|\s+\d{1,2}:\d{2}|[*•.,;\n]',
+  r'\s+(con|el|desde|por|hoy|de tu|fecha|a las|a tu|a su|en tu|en su|para|tarjeta|t\.?\s?cred|t\.?\s?deb)\b|\s+\d{1,2}[/-]\d{1,2}|\s+\d{1,2}:\d{2}|[*•.,;\n]',
   caseSensitive: false,
 );
 
@@ -83,8 +97,8 @@ double? normalizarMonto(String s) {
 
 CompraDetectada? leerCompra(String paquete, String titulo, String texto) {
   final todo = '$titulo\n$texto';
-  // Dinero que entra (o un retiro) no es una compra
-  if (_entrada.hasMatch(todo)) return null;
+  if (_ignorar.hasMatch(todo)) return null;
+  final ingreso = _entrada.hasMatch(todo);
 
   final m = _monto.firstMatch(todo);
   if (m == null) return null;
@@ -98,7 +112,19 @@ CompraDetectada? leerCompra(String paquete, String titulo, String texto) {
   };
 
   String? comercio;
-  if (_billeteras.containsKey(paquete) && !_monto.hasMatch(titulo) && titulo.trim().isNotEmpty) {
+  if (ingreso) {
+    // Quién envió el dinero
+    final o = _origen.firstMatch(todo.substring(m.end)) ?? _origen.firstMatch(todo);
+    if (o != null) {
+      var nombre = o.group(1)!;
+      final corte = _corte.firstMatch(nombre);
+      if (corte != null) nombre = nombre.substring(0, corte.start);
+      nombre = nombre.trim();
+      if (nombre.length >= 2) comercio = nombre;
+    }
+  } else if (_billeteras.containsKey(paquete) &&
+      !_monto.hasMatch(titulo) &&
+      titulo.trim().isNotEmpty) {
     // Las billeteras ponen el comercio como título
     comercio = titulo.trim();
   } else {
@@ -117,6 +143,7 @@ CompraDetectada? leerCompra(String paquete, String titulo, String texto) {
 
   return CompraDetectada(
     monto: monto,
+    ingreso: ingreso,
     moneda: moneda,
     comercio: comercio,
     ultimos4: _tarjeta.firstMatch(todo)?.group(1),

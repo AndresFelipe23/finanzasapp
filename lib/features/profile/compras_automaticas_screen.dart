@@ -17,6 +17,7 @@ class _ComprasAutomaticasScreenState extends State<ComprasAutomaticasScreen>
     with WidgetsBindingObserver {
   bool _activo = false;
   bool _acceso = false;
+  bool _ingresos = true;
   List<Map<String, dynamic>> _registro = const [];
 
   @override
@@ -39,15 +40,17 @@ class _ComprasAutomaticasScreenState extends State<ComprasAutomaticasScreen>
   }
 
   Future<void> _cargar() async {
-    final (activo, acceso, registro) = await (
+    final (activo, acceso, ingresos, registro) = await (
       CompraAutomatica.activo(),
       CompraAutomatica.tieneAcceso(),
+      CompraAutomatica.ingresosActivos(),
       CompraAutomatica.registro(),
     ).wait;
     if (!mounted) return;
     setState(() {
       _activo = activo;
       _acceso = acceso;
+      _ingresos = ingresos;
       _registro = registro;
     });
   }
@@ -107,15 +110,15 @@ class _ComprasAutomaticasScreenState extends State<ComprasAutomaticasScreen>
                 children: [
                   const BrandBackButton(),
                   const SizedBox(width: 12),
-                  Expanded(child: Text('Compras automáticas', style: Brand.title(size: 22))),
+                  Expanded(child: Text('Registro automático', style: Brand.title(size: 22))),
                 ],
               ),
               const SizedBox(height: 14),
               Text(
                 'Cuando pagas con el teléfono (NFC) o con tarjeta, Google Wallet '
-                'o tu banco te avisa. Financially lee ese aviso y registra el '
-                'gasto solo: comercio, monto, tarjeta y la categoría que usaste '
-                'antes en ese comercio.',
+                'o tu banco te avisa, y también cuando recibes dinero. Financially '
+                'lee ese aviso y registra el gasto o el ingreso solo: monto, '
+                'comercio o quién te envió, cuenta y la categoría que usaste antes.',
                 style: Brand.text(size: 14, color: Brand.muted, height: 1.45),
               ),
               const SizedBox(height: 18),
@@ -123,9 +126,18 @@ class _ComprasAutomaticasScreenState extends State<ComprasAutomaticasScreen>
                 children: [
                   BrandSwitchRow(
                     title: 'Registrar compras automáticamente',
-                    subtitle: 'Te avisamos cada compra que se registre',
+                    subtitle: 'Te avisamos cada movimiento que se registre',
                     value: _activo,
                     onChanged: _cambiar,
+                  ),
+                  BrandSwitchRow(
+                    title: 'También el dinero que recibes',
+                    subtitle: '"Recibiste \$50.000 de…" se registra como ingreso',
+                    value: _ingresos,
+                    onChanged: (v) async {
+                      await CompraAutomatica.setIngresosActivos(v);
+                      setState(() => _ingresos = v);
+                    },
                   ),
                   BrandGroupRow(
                     label: 'Permiso de notificaciones',
@@ -153,7 +165,11 @@ class _ComprasAutomaticasScreenState extends State<ComprasAutomaticasScreen>
                 'el aviso te pide elegirla.\n'
                 '• Si Wallet y el banco avisan la misma compra, o ya la registraste '
                 'a mano, no se duplica.\n'
-                '• No se registra dinero que entra, retiros ni promociones.',
+                '• Ingresos: van a la cuenta de la app que avisó (un aviso de Nequi, '
+                'a tu cuenta Nequi); si corriges la cuenta, se recuerda.\n'
+                '• Si pasas plata entre tus cuentas, el "Recibiste…" no se cuenta '
+                'como ingreso cuando ya registraste la transferencia.\n'
+                '• No se registran retiros, pagos a tu tarjeta ni promociones.',
                 style: Brand.text(size: 13, color: Brand.muted, height: 1.5),
               ),
               const SizedBox(height: 22),
