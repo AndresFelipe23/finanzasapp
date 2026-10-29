@@ -110,71 +110,44 @@ class AppTokens extends ThemeExtension<AppTokens> {
 
   bool get isDark => brightness == Brightness.dark;
 
+  // Paleta del diseño "Financially · App móvil" (los mismos valores que
+  // Brand): superficies sólidas, sin vidrio. Los tokens glass*, blob* y blur*
+  // se conservan por compatibilidad, pero ya resuelven a opacos o a cero.
   static const AppTokens light = AppTokens(
     brightness: Brightness.light,
-    bg: Color(0xFFF4F6FB),
-    bgTop: Color(0xFFF7F9FD),
-    bgBottom: Color(0xFFEDF1F9),
+    bg: Color(0xFFF4F5F1),
+    bgTop: Color(0xFFF4F5F1),
+    bgBottom: Color(0xFFF4F5F1),
     surface: Color(0xFFFFFFFF),
-    primary: Color(0xFF1E2340),
-    accent: Color(0xFF5B5FEE),
-    success: Color(0xFF22C55E),
-    danger: Color(0xFFEF4444),
-    warning: Color(0xFFF59E0B),
-    transfer: Color(0xFF8B5CF6),
-    textPrimary: Color(0xFF1E2340),
-    textSecondary: Color(0xFF5A677D),
-    border: Color(0xFFE2E8F0),
-    divider: Color(0xFFF1F5F9),
-    glassFill: Color(0x8CFFFFFF),
-    glassFillStrong: Color(0xB8FFFFFF),
-    glassStrokeStart: Color(0xBFFFFFFF),
-    glassStrokeEnd: Color(0x26FFFFFF),
-    glassShadow: Color(0x14000000),
-    blobAccent: Color(0x2E5B5FEE),
-    blobTransfer: Color(0x248B5CF6),
-    blobSuccess: Color(0x1A22C55E),
-    heroStart: Color(0xFF1E2340),
-    heroEnd: Color(0xFF2D3461),
-    blurChrome: 22,
-    blurCard: 12,
-    radiusSm: 16,
-    radiusMd: 20,
-    radiusLg: 28,
+    primary: Color(0xFF10201B),
+    accent: Color(0xFF0B6E4F),
+    success: Color(0xFF0B6E4F),
+    danger: Color(0xFFB4531A),
+    warning: Color(0xFFA86A0C),
+    transfer: Color(0xFF1F5FAD),
+    textPrimary: Color(0xFF10201B),
+    textSecondary: Color(0xFF5A6762),
+    border: Color(0xFFE3E6E0),
+    divider: Color(0xFFE9ECE6),
+    glassFill: Color(0xFFFFFFFF),
+    glassFillStrong: Color(0xFFFFFFFF),
+    glassStrokeStart: Color(0xFFE3E6E0),
+    glassStrokeEnd: Color(0xFFE3E6E0),
+    glassShadow: Color(0x00000000),
+    blobAccent: Color(0x00000000),
+    blobTransfer: Color(0x00000000),
+    blobSuccess: Color(0x00000000),
+    heroStart: Color(0xFF10201B),
+    heroEnd: Color(0xFF10201B),
+    blurChrome: 0,
+    blurCard: 0,
+    radiusSm: 14,
+    radiusMd: 18,
+    radiusLg: 24,
   );
 
-  static const AppTokens dark = AppTokens(
-    brightness: Brightness.dark,
-    bg: Color(0xFF0B0F1E),
-    bgTop: Color(0xFF0B0F1E),
-    bgBottom: Color(0xFF070A14),
-    surface: Color(0xFF151A2E),
-    primary: Color(0xFFF1F5F9),
-    accent: Color(0xFF7C82FF),
-    success: Color(0xFF34D399),
-    danger: Color(0xFFF87171),
-    warning: Color(0xFFFBBF24),
-    transfer: Color(0xFFA78BFA),
-    textPrimary: Color(0xFFF1F5F9),
-    textSecondary: Color(0xFF94A3B8),
-    border: Color(0xFF2A3352),
-    divider: Color(0xFF1E2540),
-    glassFill: Color(0x0FFFFFFF),
-    glassFillStrong: Color(0x1AFFFFFF),
-    glassStrokeStart: Color(0x38FFFFFF),
-    glassStrokeEnd: Color(0x0AFFFFFF),
-    glassShadow: Color(0x66000000),
-    blobAccent: Color(0x4D7C82FF),
-    blobTransfer: Color(0x38A78BFA),
-    blobSuccess: Color(0x2434D399),
-    heroStart: Color(0xFF252C55),
-    heroEnd: Color(0xFF39407A),
-    blurChrome: 22,
-    blurCard: 12,
-    radiusSm: 16,
-    radiusMd: 20,
-    radiusLg: 28,
-  );
+  // La app es solo de modo claro; el alias se deja por compatibilidad
+  static const AppTokens dark = light;
 
   @override
   AppTokens copyWith({
@@ -299,9 +272,11 @@ class NeoBankTheme {
     final base = t.isDark
         ? ThemeData.dark(useMaterial3: true)
         : ThemeData.light(useMaterial3: true);
-    final textTheme = GoogleFonts.plusJakartaSansTextTheme(
+    final textTheme = GoogleFonts.manropeTextTheme(
       base.textTheme,
     ).apply(bodyColor: t.textPrimary, displayColor: t.textPrimary);
+    TextStyle font({double? size, FontWeight? weight, Color? color}) =>
+        GoogleFonts.manrope(fontSize: size, fontWeight: weight, color: color);
 
     return base.copyWith(
       extensions: <ThemeExtension<dynamic>>[t],
@@ -313,6 +288,8 @@ class NeoBankTheme {
         onSecondary: Colors.white,
         surface: t.surface,
         onSurface: t.textPrimary,
+        surfaceContainerHighest: t.divider,
+        outline: t.border,
         error: t.danger,
         onError: Colors.white,
       ),
@@ -328,11 +305,80 @@ class NeoBankTheme {
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark,
         iconTheme: IconThemeData(color: t.textPrimary),
-        titleTextStyle: GoogleFonts.plusJakartaSans(
-          color: t.textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
+        titleTextStyle: font(size: 20, weight: FontWeight.w800, color: t.textPrimary),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: t.accent,
+          textStyle: font(size: 14, weight: FontWeight.w700),
         ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: t.accent,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: font(size: 14, weight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: t.textPrimary,
+          side: BorderSide(color: t.border),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: font(size: 14, weight: FontWeight.w700),
+        ),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? t.accent : null,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+      ),
+      switchTheme: SwitchThemeData(
+        trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? t.accent : null,
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: t.textPrimary,
+        contentTextStyle: font(size: 14, color: Colors.white),
+        actionTextColor: const Color(0xFF7FD1AE),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: t.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: t.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: font(size: 14, weight: FontWeight.w600, color: t.textPrimary),
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: t.surface,
+        surfaceTintColor: Colors.transparent,
+        headerBackgroundColor: t.textPrimary,
+        headerForegroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(t.radiusLg)),
+        dayStyle: font(size: 14, weight: FontWeight.w600),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: t.surface,
+        selectedColor: t.textPrimary,
+        side: BorderSide(color: t.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        labelStyle: font(size: 13, weight: FontWeight.w700, color: t.textPrimary),
+      ),
+      listTileTheme: ListTileThemeData(
+        iconColor: t.textPrimary,
+        titleTextStyle: font(size: 15, weight: FontWeight.w600, color: t.textPrimary),
+        subtitleTextStyle: font(size: 12, color: t.textSecondary),
       ),
       cardTheme: CardThemeData(
         color: t.surface,
@@ -352,15 +398,12 @@ class NeoBankTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: font(size: 15, weight: FontWeight.w700),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: t.isDark ? t.glassFillStrong : t.bg,
+        fillColor: t.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: t.border),
@@ -373,7 +416,7 @@ class NeoBankTheme {
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: t.accent, width: 1.5),
         ),
-        hintStyle: GoogleFonts.plusJakartaSans(color: t.textSecondary),
+        hintStyle: font(color: t.textSecondary),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 14,

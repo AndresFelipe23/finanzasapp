@@ -89,7 +89,7 @@ class PagosNfcHistoryScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF3B82F6).withOpacity(0.1),
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -111,10 +111,7 @@ class PagosNfcHistoryScreen extends ConsumerWidget {
           const Text(
             'Tus pagos con NFC\naparecerán aquí',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
         ],
       ),
@@ -161,7 +158,11 @@ class PagosNfcHistoryScreen extends ConsumerWidget {
 
     // Calcular total del día
     final totalDia = pagos.fold<double>(0, (sum, p) => sum + p.monto);
-    final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0);
+    final fmt = NumberFormat.currency(
+      locale: 'es_CO',
+      symbol: '\$',
+      decimalDigits: 0,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,9 +181,12 @@ class PagosNfcHistoryScreen extends ConsumerWidget {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withOpacity(0.1),
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -204,7 +208,11 @@ class PagosNfcHistoryScreen extends ConsumerWidget {
   }
 
   Widget _buildPaymentCard(PagoNfc pago) {
-    final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0);
+    final fmt = NumberFormat.currency(
+      locale: 'es_CO',
+      symbol: '\$',
+      decimalDigits: 0,
+    );
     final timeFmt = DateFormat('HH:mm');
 
     return Container(
@@ -214,7 +222,7 @@ class PagosNfcHistoryScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -229,7 +237,7 @@ class PagosNfcHistoryScreen extends ConsumerWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFF3B82F6).withOpacity(0.1),
+                color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
@@ -263,12 +271,10 @@ class PagosNfcHistoryScreen extends ConsumerWidget {
                       const SizedBox(width: 4),
                       Text(
                         timeFmt.format(pago.fechaPago),
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
-                      if (pago.ubicacion != null && pago.ubicacion!.isNotEmpty) ...[
+                      if (pago.ubicacion != null &&
+                          pago.ubicacion!.isNotEmpty) ...[
                         const SizedBox(width: 12),
                         Icon(
                           Icons.location_on,
@@ -297,7 +303,7 @@ class PagosNfcHistoryScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withOpacity(0.1),
+                color: const Color(0xFF10B981).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(

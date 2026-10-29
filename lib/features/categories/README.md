@@ -9,9 +9,9 @@ features/categories/
 ├── categories_screen.dart        # Pantalla principal de categorías
 ├── categories_service.dart       # Servicio de API
 ├── categories_provider.dart      # Providers y estado (Riverpod)
-├── add_category_dialog.dart       # Dialog para crear categorías
-├── edit_category_dialog.dart      # Dialog para editar categorías
-└── README.md                       # Este archivo
+├── category_form_screen.dart     # Crear y editar categorías (con presupuesto opcional)
+├── category_style.dart           # Íconos y paleta de colores compartidos
+└── README.md                     # Este archivo
 ```
 
 ## Características Implementadas

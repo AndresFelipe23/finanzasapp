@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono pequeño de las notificaciones (barra de estado): la F con el punto,
+     en un solo color; Android lo tiñe. El ícono de la app (adaptativo) se veía
+     como un cuadro gris. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M8.2,3h1.6a1.2,1.2 0,0 1,1.2 1.2v15.6a1.2,1.2 0,0 1,-1.2 1.2h-1.6a1.2,1.2 0,0 1,-1.2 -1.2v-15.6a1.2,1.2 0,0 1,1.2 -1.2zM8.2,3h9.6a1.2,1.2 0,0 1,1.2 1.2v1.6a1.2,1.2 0,0 1,-1.2 1.2h-9.6a1.2,1.2 0,0 1,-1.2 -1.2v-1.6a1.2,1.2 0,0 1,1.2 -1.2zM8.2,10.5h6.1a1.2,1.2 0,0 1,1.2 1.2v1.2a1.2,1.2 0,0 1,-1.2 1.2h-6.1a1.2,1.2 0,0 1,-1.2 -1.2v-1.2a1.2,1.2 0,0 1,1.2 -1.2zM15.3,18.4a2.3,2.3 0,1 0,4.6 0a2.3,2.3 0,1 0,-4.6 0z" />
+</vector>

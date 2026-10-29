@@ -47,7 +47,9 @@ class AccountsNotifier extends StateNotifier<AsyncValue<List<Cuenta>>> {
   final AccountsService _service;
 
   Future<void> _loadAccounts() async {
-    state = const AsyncValue.loading();
+    // Conserva la lista anterior mientras recarga: si no, las pantallas la ven
+    // vacía un instante (y creen que el usuario no tiene cuentas)
+    state = const AsyncLoading<List<Cuenta>>().copyWithPrevious(state);
     try {
       final accounts = await _service.getAllAccounts();
       state = AsyncValue.data(accounts);

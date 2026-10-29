@@ -226,7 +226,7 @@ class CreateTransaccionRequest {
     if (titulo != null) 'titulo': titulo,
     if (descripcion != null) 'descripcion': descripcion,
     if (fechaTransaccion != null)
-      'fechaTransaccion': _formatApiDateTime(fechaTransaccion!),
+      'fechaTransaccion': formatApiDateTime(fechaTransaccion!),
     if (archivoAdjunto != null) 'archivoAdjunto': archivoAdjunto,
     if (notas != null) 'notas': notas,
     'repetir': repetir,
@@ -240,6 +240,7 @@ class UpdateTransaccionRequest {
   final int? metodoPagoId;
   final double? monto;
   final String? moneda;
+  final String? titulo; // la nota; "" la borra
   final String? descripcion;
   final DateTime? fechaTransaccion;
   final String? archivoAdjunto;
@@ -254,6 +255,7 @@ class UpdateTransaccionRequest {
     this.metodoPagoId,
     this.monto,
     this.moneda,
+    this.titulo,
     this.descripcion,
     this.fechaTransaccion,
     this.archivoAdjunto,
@@ -272,6 +274,7 @@ class UpdateTransaccionRequest {
     if (metodoPagoId != null) json['metodoPagoId'] = metodoPagoId;
     if (monto != null) json['monto'] = monto;
     if (moneda != null) json['moneda'] = moneda;
+    if (titulo != null) json['titulo'] = titulo;
     if (descripcion != null) json['descripcion'] = descripcion;
     if (fechaTransaccion != null) {
       final dt = fechaTransaccion!.toLocal();
@@ -314,7 +317,9 @@ class TransaccionSummary {
       );
 }
 
-String _formatApiDateTime(DateTime dateTime) {
+/// Fecha y hora del teléfono sin zona ("2026-10-28T21:40:12"). La API la
+/// guarda tal cual: así la hora es la del país del usuario, no la de Colombia.
+String formatApiDateTime(DateTime dateTime) {
   final dt = dateTime.toLocal();
   String two(int n) => n.toString().padLeft(2, '0');
   final y = dt.year.toString().padLeft(4, '0');

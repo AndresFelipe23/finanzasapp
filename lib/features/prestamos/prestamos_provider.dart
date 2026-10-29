@@ -19,7 +19,7 @@ class PrestamosNotifier extends StateNotifier<AsyncValue<List<Prestamo>>> {
 
   Future<void> refresh({bool? activos}) async {
     try {
-      state = const AsyncValue.loading();
+      state = const AsyncLoading<List<Prestamo>>().copyWithPrevious(state);
       final items = await _service.getAll(activos: activos);
       state = AsyncValue.data(items);
     } catch (e, st) {

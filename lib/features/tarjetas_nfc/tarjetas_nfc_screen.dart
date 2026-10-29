@@ -66,7 +66,9 @@ class TarjetasNfcScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           await Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const CreateEditTarjetaNfcScreen()),
+            MaterialPageRoute(
+              builder: (_) => const CreateEditTarjetaNfcScreen(),
+            ),
           );
           ref.read(tarjetasNfcProvider.notifier).refresh();
         },
@@ -88,7 +90,7 @@ class TarjetasNfcScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF3B82F6).withOpacity(0.1),
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -110,10 +112,7 @@ class TarjetasNfcScreen extends ConsumerWidget {
           const Text(
             'Agrega tu primera tarjeta NFC\npara comenzar',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
         ],
       ),
@@ -142,7 +141,11 @@ class TarjetasNfcScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCardItem(BuildContext context, WidgetRef ref, TarjetaNfc tarjeta) {
+  Widget _buildCardItem(
+    BuildContext context,
+    WidgetRef ref,
+    TarjetaNfc tarjeta,
+  ) {
     final color = _parseColor(tarjeta.color) ?? const Color(0xFF3B82F6);
     final fechaFmt = DateFormat('dd/MM/yyyy');
 
@@ -153,7 +156,7 @@ class TarjetasNfcScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -166,7 +169,7 @@ class TarjetasNfcScreen extends ConsumerWidget {
             height: 100,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [color, color.withOpacity(0.7)],
+                colors: [color, color.withValues(alpha: 0.7)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -187,7 +190,7 @@ class TarjetasNfcScreen extends ConsumerWidget {
                       ),
                       gradient: LinearGradient(
                         colors: [
-                          Colors.white.withOpacity(0.1),
+                          Colors.white.withValues(alpha: 0.1),
                           Colors.transparent,
                         ],
                         begin: Alignment.topLeft,
@@ -206,9 +209,12 @@ class TarjetasNfcScreen extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.25),
+                              color: Colors.white.withValues(alpha: 0.25),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -223,10 +229,16 @@ class TarjetasNfcScreen extends ConsumerWidget {
                           ),
                           Row(
                             children: [
-                              const Icon(Icons.contactless, color: Colors.white, size: 20),
+                              const Icon(
+                                Icons.contactless,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                               const SizedBox(width: 4),
                               Icon(
-                                tarjeta.activa ? Icons.check_circle : Icons.cancel,
+                                tarjeta.activa
+                                    ? Icons.check_circle
+                                    : Icons.cancel,
                                 color: Colors.white,
                                 size: 16,
                               ),
@@ -250,7 +262,7 @@ class TarjetasNfcScreen extends ConsumerWidget {
                           Text(
                             tarjeta.banco?.toUpperCase() ?? 'SIN BANCO',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                             ),
@@ -295,7 +307,8 @@ class TarjetasNfcScreen extends ConsumerWidget {
                         onPressed: () async {
                           await Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => CreateEditTarjetaNfcScreen(tarjeta: tarjeta),
+                              builder: (_) =>
+                                  CreateEditTarjetaNfcScreen(tarjeta: tarjeta),
                             ),
                           );
                           ref.read(tarjetasNfcProvider.notifier).refresh();
@@ -321,21 +334,23 @@ class TarjetasNfcScreen extends ConsumerWidget {
                     Container(
                       decoration: BoxDecoration(
                         color: tarjeta.activa
-                            ? const Color(0xFF10B981).withOpacity(0.1)
+                            ? const Color(0xFF10B981).withValues(alpha: 0.1)
                             : Colors.grey[200],
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Switch(
                         value: tarjeta.activa,
                         activeThumbColor: const Color(0xFF10B981),
-                        onChanged: (v) => ref.read(tarjetasNfcProvider.notifier).toggle(tarjeta.id, v),
+                        onChanged: (v) => ref
+                            .read(tarjetasNfcProvider.notifier)
+                            .toggle(tarjeta.id, v),
                       ),
                     ),
                     const SizedBox(width: 4),
                     IconButton(
                       onPressed: () => _showDeleteDialog(context, ref, tarjeta),
                       style: IconButton.styleFrom(
-                        backgroundColor: Colors.red.withOpacity(0.1),
+                        backgroundColor: Colors.red.withValues(alpha: 0.1),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -362,7 +377,7 @@ class TarjetasNfcScreen extends ConsumerWidget {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF3B82F6).withOpacity(0.1),
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 16, color: const Color(0xFF3B82F6)),

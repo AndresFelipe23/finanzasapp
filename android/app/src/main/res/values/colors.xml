@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Verde profundo del diseño: fondo del arranque y del splash -->
+    <color name="splash_background">#0B3B2C</color>
+    <!-- Fondo del ícono adaptativo de la app -->
+    <color name="ic_launcher_background">#0B3B2C</color>
+</resources>

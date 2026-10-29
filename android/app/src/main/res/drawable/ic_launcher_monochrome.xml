@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Versión de un color para los íconos temáticos; el sistema la tiñe -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M38,31h4a4,4 0,0 1,4 4v38a4,4 0,0 1,-4 4h-4a4,4 0,0 1,-4 -4v-38a4,4 0,0 1,4 -4zM38,31h26a4,4 0,0 1,4 4v4a4,4 0,0 1,-4 4h-26a4,4 0,0 1,-4 -4v-4a4,4 0,0 1,4 -4zM38,50h16a4,4 0,0 1,4 4v3a4,4 0,0 1,-4 4h-16a4,4 0,0 1,-4 -4v-3a4,4 0,0 1,4 -4zM61.5,71a6.5,6.5 0,1 0,13 0a6.5,6.5 0,1 0,-13 0z" />
+</vector>

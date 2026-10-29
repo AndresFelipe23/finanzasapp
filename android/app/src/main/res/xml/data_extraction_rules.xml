@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: nada de la app se copia a la nube ni a otro teléfono. Los
+     datos (sesión cifrada, onboarding visto, preferencias) dependen de llaves
+     del Keystore que no viajan con la copia: restaurarlos saltaba la
+     bienvenida y dejaba una sesión ilegible. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

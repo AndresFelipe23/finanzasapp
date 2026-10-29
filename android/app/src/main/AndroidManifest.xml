@@ -1,11 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <application
         android:label="Financially"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
             android:name="com.afesdev.financially.MainActivity"
             android:exported="true"
@@ -23,9 +29,19 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Sin deep linking de Flutter: un intent con datos (botones del
+                 widget, financially://gasto) empujaba la ruta "/" (el splash)
+                 encima del formulario. Esos intents los maneja QuickLaunch. -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Botones del widget de inicio (home_widget) -->
+            <intent-filter>
+                <action android:name="es.antonborri.home_widget.action.LAUNCH" />
             </intent-filter>
             <!-- Intent filter para manejar tags NFC -->
             <intent-filter>
@@ -41,6 +57,70 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+        <!-- Widget de la pantalla de inicio -->
+        <receiver android:name=".FinanciallyWidgetProvider" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/financially_widget_info" />
+        </receiver>
+        <!-- Hoja de registro rápido que abren los mosaicos: tarea propia y fuera
+             de recientes, para no mezclarse con la app -->
+        <activity
+            android:name=".QuickEntryActivity"
+            android:exported="false"
+            android:taskAffinity="com.afesdev.financially.quick"
+            android:excludeFromRecents="true"
+            android:theme="@style/QuickEntryTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize" />
+        <!-- Registro automático de compras: lee las notificaciones de pago
+             (Wallet, bancos) cuando el usuario da "Acceso a notificaciones" -->
+        <service
+            android:name=".PurchaseListenerService"
+            android:exported="true"
+            android:label="Financially: registrar compras"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+        <!-- Mosaicos del panel de Ajustes rápidos (QuickTiles.kt) -->
+        <service
+            android:name=".GastoTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_gasto"
+            android:label="Nuevo gasto"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".IngresoTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_ingreso"
+            android:label="Nuevo ingreso"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <!-- Botones de notificación que actúan sin abrir la app (registro rápido) -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
+        <!-- Receptores de flutter_local_notifications para recordatorios programados -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

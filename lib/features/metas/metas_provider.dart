@@ -20,7 +20,7 @@ class MetasNotifier extends StateNotifier<AsyncValue<List<Meta>>> {
   }
 
   Future<void> load() async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<List<Meta>>().copyWithPrevious(state);
     try {
       final metas = await _service.getAll();
       state = AsyncValue.data(metas);

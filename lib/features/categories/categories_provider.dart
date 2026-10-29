@@ -50,7 +50,7 @@ class CategoriesNotifier extends StateNotifier<AsyncValue<List<Categoria>>> {
   final CategoriesService _service;
 
   Future<void> _loadCategories() async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<List<Categoria>>().copyWithPrevious(state);
     try {
       final categories = await _service.getAllCategories();
       state = AsyncValue.data(categories);

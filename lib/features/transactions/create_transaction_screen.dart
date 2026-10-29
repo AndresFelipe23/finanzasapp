@@ -1,20 +1,66 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../core/models/transaccion_models.dart';
-import '../../core/models/cuenta_models.dart';
+import '../../core/compras/compra_automatica.dart';
 import '../../core/models/category_models.dart';
-import '../../core/api/api_client.dart';
-import 'transactions_provider.dart';
+import '../../core/models/cuenta_models.dart';
+import '../../core/models/pago_recurrente_models.dart';
+import '../../core/models/transaccion_models.dart';
+import '../../core/prefs/form_prefs.dart';
+import '../../core/theme/brand.dart';
+import '../../core/theme/brand_form.dart';
+import '../../core/theme/brand_keypad.dart';
+import '../accounts/account_style.dart';
 import '../accounts/accounts_provider.dart';
 import '../categories/categories_provider.dart';
+import '../recurring/recurring_provider.dart';
 import '../recurring/recurring_service.dart';
+import 'category_suggestion.dart';
+import 'form_panel.dart';
+import 'transactions_provider.dart';
 
+final _money = NumberFormat.currency(
+  symbol: '\$',
+  decimalDigits: 0,
+  locale: 'es_CO',
+);
+
+// IDs de la tabla metodos_pago (datos iniciales de la BD)
+const _metodosPago = <(int, String)>[
+  (1, 'Efectivo'),
+  (2, 'Tarjeta de débito'),
+  (3, 'Tarjeta de crédito'),
+  (4, 'Transferencia bancaria'),
+  (5, 'Cheque'),
+  (6, 'PayPal'),
+  (7, 'Apple Pay'),
+  (8, 'Google Pay'),
+];
+
+/// Nuevo gasto o ingreso. Pensado para registrar rápido: monto con teclado
+/// propio, categorías ordenadas por uso, cuenta recordada y los demás datos
+/// plegados en "Detalles".
 class CreateTransactionScreen extends ConsumerStatefulWidget {
   final String tipoTransaccion; // 'INGRESO', 'GASTO'
+  // Datos que llegan ya escritos (p. ej. desde la notificación de registro rápido)
+  final double? montoInicial;
+  final String? notaInicial;
 
-  const CreateTransactionScreen({super.key, required this.tipoTransaccion});
+  /// Movimiento a editar: el formulario arranca con sus datos y guarda los
+  /// cambios sobre él (sin "Se repite").
+  final Transaccion? editar;
+
+  const CreateTransactionScreen({
+    super.key,
+    required this.tipoTransaccion,
+    this.montoInicial,
+    this.notaInicial,
+    this.editar,
+  });
+
+  /// Formulario para editar [t] (gasto o ingreso).
+  factory CreateTransactionScreen.editar(Transaccion t, {Key? key}) =>
+      CreateTransactionScreen(key: key, tipoTransaccion: t.tipoNombre, editar: t);
 
   @override
   ConsumerState<CreateTransactionScreen> createState() =>
@@ -23,1324 +69,644 @@ class CreateTransactionScreen extends ConsumerStatefulWidget {
 
 class _CreateTransactionScreenState
     extends ConsumerState<CreateTransactionScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _montoController = TextEditingController();
-  final _descripcionController = TextEditingController();
-  final _tituloController = TextEditingController();
-  final _notasController = TextEditingController();
-  int? _selectedMetodoPagoId;
+  final _monto = AmountEntry();
+  final _notaCtrl = TextEditingController();
 
-  Cuenta? _selectedCuenta;
-  Categoria? _selectedCategoria;
-  int? _tipoTransaccionId;
-  DateTime _selectedDate = DateTime.now();
+  late String _tipo = widget.tipoTransaccion == 'INGRESO' ? 'INGRESO' : 'GASTO';
+  int? _categoriaId;
+  bool _categoriaElegida = false; // true si la eligió el usuario (no sugerida)
+  int? _cuentaId;
+  final _ultimaCuenta = <String, int?>{};
+  DateTime _fecha = DateTime.now();
+  int? _metodoPagoId;
   bool _repetir = false;
-  // Recurrencia
   String _frecuencia = 'MENSUAL';
-  int? _diaVencimiento; // 1..31 para mensual+
-  int? _diaSemana; // 1..7 (1=Lunes)
-  DateTime _fechaInicio = DateTime.now();
   DateTime? _fechaFin;
+  bool _saving = false;
+
+  bool get _isIngreso => _tipo == 'INGRESO';
+  bool get _editando => widget.editar != null;
 
   @override
   void initState() {
     super.initState();
-    // Obtener IDs de tipos de transacción (asumiendo que existen en la BD)
-    _tipoTransaccionId = widget.tipoTransaccion == 'INGRESO' ? 1 : 2;
+    final e = widget.editar;
+    if (e != null) {
+      _monto.set(e.monto);
+      _notaCtrl.text = e.titulo ?? '';
+      _categoriaId = e.categoriaId;
+      _categoriaElegida = true; // no reemplazarla por una sugerida
+      _cuentaId = e.cuentaId;
+      _fecha = e.fechaTransaccion;
+      _metodoPagoId = e.metodoPagoId;
+    } else {
+      _monto.set(widget.montoInicial);
+      _notaCtrl.text = widget.notaInicial ?? '';
+    }
+    _cargarUltimasCuentas();
+  }
+
+  Future<void> _cargarUltimasCuentas() async {
+    final gasto = await FormPrefs.getInt(FormPrefs.lastAccount('GASTO'));
+    final ingreso = await FormPrefs.getInt(FormPrefs.lastAccount('INGRESO'));
+    if (!mounted) return;
+    setState(() {
+      _ultimaCuenta['GASTO'] = gasto;
+      _ultimaCuenta['INGRESO'] = ingreso;
+    });
   }
 
   @override
   void dispose() {
-    _montoController.dispose();
-    _descripcionController.dispose();
-    _tituloController.dispose();
-    _notasController.dispose();
+    _monto.dispose();
+    _notaCtrl.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final accountsAsync = ref.watch(accountsNotifierProvider);
-    final categoriesAsync = ref.watch(categoriesNotifierProvider);
-
-    final isIngreso = widget.tipoTransaccion == 'INGRESO';
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(
-          isIngreso ? 'Nuevo Ingreso' : 'Nuevo Gasto',
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937),
-            letterSpacing: -0.5,
-          ),
-        ),
-        elevation: 0,
-        backgroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: Color(0xFF1F2937)),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Banner de tipo mejorado
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isIngreso
-                        ? [const Color(0xFF10B981), const Color(0xFF059669)]
-                        : [const Color(0xFFEF4444), const Color(0xFFDC2626)],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color:
-                          (isIngreso
-                                  ? const Color(0xFF10B981)
-                                  : const Color(0xFFEF4444))
-                              .withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        isIngreso ? Icons.arrow_upward : Icons.arrow_downward,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            isIngreso ? 'Registrar Ingreso' : 'Registrar Gasto',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            isIngreso
-                                ? 'Dinero que recibes'
-                                : 'Dinero que gastas',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Título
-              _buildSectionTitle('Título'),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _tituloController,
-                decoration: InputDecoration(
-                  labelText: 'Título',
-                  hintText: 'Ej: Arriendo, Mercado, Nómina',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF10B981),
-                      width: 2,
-                    ),
-                  ),
-                  filled: true,
-                  fillColor: const Color(0xFFF9FAFB),
-                  prefixIcon: const Icon(Icons.title, color: Color(0xFF10B981)),
-                  labelStyle: const TextStyle(color: Color(0xFF6B7280)),
-                ),
-                maxLength: 150,
-              ),
-
-              const SizedBox(height: 16),
-
-              // Monto
-              _buildSectionTitle('Monto'),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _montoController,
-                onChanged: (value) {
-                  setState(() {}); // Actualizar para mostrar saldo resultante
-                },
-                decoration: InputDecoration(
-                  labelText: 'Monto',
-                  hintText: '0.00',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF10B981),
-                      width: 2,
-                    ),
-                  ),
-                  filled: true,
-                  fillColor: const Color(0xFFF9FAFB),
-                  prefixIcon: const Icon(
-                    Icons.attach_money,
-                    color: Color(0xFF10B981),
-                  ),
-                  suffix: const Text(
-                    'COP',
-                    style: TextStyle(
-                      color: Color(0xFF6B7280),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  labelStyle: const TextStyle(color: Color(0xFF6B7280)),
-                ),
-                keyboardType: const TextInputType.numberWithOptions(
-                  signed: false,
-                  decimal: true,
-                ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                ],
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'El monto es requerido';
-                  }
-                  final monto = double.tryParse(value);
-                  if (monto == null) {
-                    return 'Ingresa un número válido';
-                  }
-                  if (monto <= 0) {
-                    return 'El monto debe ser mayor que cero';
-                  }
-                  // Validar saldo suficiente si es un gasto
-                  if (!isIngreso && _selectedCuenta != null) {
-                    final saldoActual = _selectedCuenta!.saldoActual ?? _selectedCuenta!.saldoInicial;
-                    if (monto > saldoActual) {
-                      return 'El monto excede el saldo disponible (${_selectedCuenta!.moneda} ${saldoActual.toStringAsFixed(2)})';
-                    }
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // Método de Pago (opcional)
-              _buildSectionTitle('Método de Pago (opcional)'),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                isExpanded: true,
-                initialValue: _selectedMetodoPagoId,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF10B981),
-                      width: 2,
-                    ),
-                  ),
-                  filled: true,
-                  fillColor: const Color(0xFFF9FAFB),
-                  prefixIcon: const Icon(
-                    Icons.payments,
-                    color: Color(0xFF10B981),
-                  ),
-                  labelStyle: const TextStyle(color: Color(0xFF6B7280)),
-                ),
-                hint: const Text('Selecciona método de pago (opcional)'),
-                items: _metodosPagoOptions
-                    .map(
-                      (e) => DropdownMenuItem<int>(
-                        value: e.id,
-                        child: Text(e.nombre, overflow: TextOverflow.ellipsis),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedMetodoPagoId = value;
-                  });
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // Cuenta (dropdown)
-              _buildSectionTitle('Cuenta'),
-              const SizedBox(height: 12),
-              accountsAsync.when(
-                data: (cuentas) {
-                  if (cuentas.isEmpty) {
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: const Text(
-                        'No hay cuentas disponibles. Crea una cuenta primero.',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    );
-                  }
-                  // Eliminar duplicados por ID
-                  final cuentasUnicas = cuentas.toSet().toList();
-
-                  return DropdownButtonFormField<Cuenta>(
-                    initialValue: _selectedCuenta,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF10B981),
-                          width: 2,
-                        ),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFF9FAFB),
-                      prefixIcon: const Icon(
-                        Icons.account_balance,
-                        color: Color(0xFF10B981),
-                      ),
-                      labelStyle: const TextStyle(color: Color(0xFF6B7280)),
-                    ),
-                    hint: const Text('Selecciona una cuenta'),
-                    items: cuentasUnicas.map((cuenta) {
-                      return DropdownMenuItem<Cuenta>(
-                        value: cuenta,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _getIcon(cuenta.icono),
-                              color: _parseColor(cuenta.color),
-                              size: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              cuenta.nombre,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (cuenta) {
-                      setState(() {
-                        _selectedCuenta = cuenta;
-                      });
-                    },
-                    validator: (value) {
-                      if (value == null) {
-                        return 'Selecciona una cuenta';
-                      }
-                      return null;
-                    },
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stack) => Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.red[200]!),
-                  ),
-                  child: Text(
-                    'Error al cargar cuentas',
-                    style: TextStyle(color: Colors.red[800]),
-                  ),
-                ),
-              ),
-
-              // Mostrar saldo resultante si es un gasto y hay cuenta seleccionada
-              if (!isIngreso && _selectedCuenta != null) ...[
-                const SizedBox(height: 16),
-                _buildSaldoResultante(),
-              ],
-
-              const SizedBox(height: 24),
-
-              // Categoría (dropdown)
-              _buildSectionTitle('Categoría'),
-              const SizedBox(height: 12),
-              categoriesAsync.when(
-                data: (categorias) {
-                  final categoriasFiltradas = categorias.where((cat) {
-                    return cat.tipo == 'AMBOS' ||
-                        cat.tipo == widget.tipoTransaccion;
-                  }).toList();
-
-                  if (categoriasFiltradas.isEmpty) {
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: const Text(
-                        'No hay categorías disponibles.',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    );
-                  }
-                  // Eliminar duplicados por ID
-                  final categoriasUnicas = categoriasFiltradas.toSet().toList();
-
-                  return DropdownButtonFormField<Categoria>(
-                    initialValue: _selectedCategoria,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF10B981),
-                          width: 2,
-                        ),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFF9FAFB),
-                      prefixIcon: const Icon(
-                        Icons.category,
-                        color: Color(0xFF10B981),
-                      ),
-                      labelStyle: const TextStyle(color: Color(0xFF6B7280)),
-                    ),
-                    hint: const Text('Selecciona una categoría'),
-                    items: categoriasUnicas.map((categoria) {
-                      return DropdownMenuItem<Categoria>(
-                        value: categoria,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: _parseColor(categoria.color),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              categoria.nombre,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (categoria) {
-                      setState(() {
-                        _selectedCategoria = categoria;
-                      });
-                    },
-                    validator: (value) {
-                      if (value == null) {
-                        return 'Selecciona una categoría';
-                      }
-                      return null;
-                    },
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stack) => Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.red[200]!),
-                  ),
-                  child: Text(
-                    'Error al cargar categorías',
-                    style: TextStyle(color: Colors.red[800]),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Fecha
-              _buildSectionTitle('Fecha'),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: () async {
-                  final date = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedDate,
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                  );
-                  if (date != null) {
-                    setState(() {
-                      _selectedDate = DateTime(
-                        date.year,
-                        date.month,
-                        date.day,
-                      );
-                    });
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF9FAFB),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.calendar_today,
-                          color: Color(0xFF10B981),
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          _formatOnlyDate(_selectedDate),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Color(0xFF1F2937),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right, color: Color(0xFF6B7280)),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Descripción
-              _buildSectionTitle('Descripción'),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _descripcionController,
-                decoration: InputDecoration(
-                  labelText: 'Descripción',
-                  hintText: 'Ej: Compra de supermercado',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF10B981),
-                      width: 2,
-                    ),
-                  ),
-                  filled: true,
-                  fillColor: const Color(0xFFF9FAFB),
-                  prefixIcon: const Icon(
-                    Icons.description_outlined,
-                    color: Color(0xFF10B981),
-                  ),
-                  labelStyle: const TextStyle(color: Color(0xFF6B7280)),
-                ),
-                maxLines: 2,
-              ),
-
-              const SizedBox(height: 24),
-
-              // Notas
-              _buildSectionTitle('Notas (opcional)'),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _notasController,
-                decoration: InputDecoration(
-                  labelText: 'Notas',
-                  hintText: 'Notas adicionales...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF10B981),
-                      width: 2,
-                    ),
-                  ),
-                  filled: true,
-                  fillColor: const Color(0xFFF9FAFB),
-                  prefixIcon: const Icon(
-                    Icons.note_outlined,
-                    color: Color(0xFF10B981),
-                  ),
-                  labelStyle: const TextStyle(color: Color(0xFF6B7280)),
-                ),
-                maxLines: 3,
-              ),
-
-              const SizedBox(height: 24),
-
-              // Checkbox repetir
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF9FAFB),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: _repetir
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFFE5E7EB),
-                        ),
-                      ),
-                      child: Checkbox(
-                        value: _repetir,
-                        onChanged: (value) {
-                          setState(() {
-                            _repetir = value ?? false;
-                          });
-                        },
-                        activeColor: const Color(0xFF10B981),
-                        checkColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Marcar como transacción recurrente',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF1F2937),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              if (_repetir) ...[
-                const SizedBox(height: 16),
-                _buildSectionTitle('Configuración de recurrencia'),
-                const SizedBox(height: 12),
-                // Frecuencia
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  initialValue: _frecuencia,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF10B981),
-                        width: 2,
-                      ),
-                    ),
-                    filled: true,
-                    fillColor: const Color(0xFFF9FAFB),
-                    prefixIcon: const Icon(
-                      Icons.schedule,
-                      color: Color(0xFF10B981),
-                    ),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'DIARIO', child: Text('Diario')),
-                    DropdownMenuItem(value: 'SEMANAL', child: Text('Semanal')),
-                    DropdownMenuItem(value: 'MENSUAL', child: Text('Mensual')),
-                    DropdownMenuItem(
-                      value: 'BIMESTRAL',
-                      child: Text('Bimestral'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'TRIMESTRAL',
-                      child: Text('Trimestral'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'SEMESTRAL',
-                      child: Text('Semestral'),
-                    ),
-                    DropdownMenuItem(value: 'ANUAL', child: Text('Anual')),
-                  ],
-                  onChanged: (val) {
-                    setState(() {
-                      _frecuencia = val ?? 'MENSUAL';
-                      // Defaults según frecuencia
-                      if (_frecuencia == 'SEMANAL') {
-                        final js = _selectedDate.weekday; // 1=lun..7=dom
-                        _diaSemana = js;
-                        _diaVencimiento = null;
-                      } else if (_frecuencia == 'DIARIO') {
-                        _diaSemana = null;
-                        _diaVencimiento = null;
-                      } else {
-                        _diaSemana = null;
-                        _diaVencimiento = _selectedDate.day;
-                      }
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                if (_frecuencia == 'SEMANAL')
-                  DropdownButtonFormField<int>(
-                    isExpanded: true,
-                    initialValue: _diaSemana ?? (_selectedDate.weekday),
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF10B981),
-                          width: 2,
-                        ),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFF9FAFB),
-                      prefixIcon: const Icon(
-                        Icons.event,
-                        color: Color(0xFF10B981),
-                      ),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 1, child: Text('Lunes')),
-                      DropdownMenuItem(value: 2, child: Text('Martes')),
-                      DropdownMenuItem(value: 3, child: Text('Miércoles')),
-                      DropdownMenuItem(value: 4, child: Text('Jueves')),
-                      DropdownMenuItem(value: 5, child: Text('Viernes')),
-                      DropdownMenuItem(value: 6, child: Text('Sábado')),
-                      DropdownMenuItem(value: 7, child: Text('Domingo')),
-                    ],
-                    onChanged: (v) => setState(() => _diaSemana = v),
-                  ),
-                if (_frecuencia != 'SEMANAL' && _frecuencia != 'DIARIO')
-                  TextFormField(
-                    initialValue: (_diaVencimiento ?? _selectedDate.day)
-                        .toString(),
-                    decoration: InputDecoration(
-                      labelText: 'Día del mes (1-31)',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF10B981),
-                          width: 2,
-                        ),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFF9FAFB),
-                      prefixIcon: const Icon(
-                        Icons.calendar_today,
-                        color: Color(0xFF10B981),
-                      ),
-                    ),
-                    keyboardType: TextInputType.number,
-                    onChanged: (v) {
-                      final n = int.tryParse(v);
-                      if (n != null && n >= 1 && n <= 31) _diaVencimiento = n;
-                    },
-                  ),
-                const SizedBox(height: 12),
-                // Fechas inicio/fin
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.flag),
-                        label: Text('Inicio: ${_formatOnlyDate(_fechaInicio)}'),
-                        onPressed: () async {
-                          final d = await showDatePicker(
-                            context: context,
-                            initialDate: _fechaInicio,
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime(2100),
-                          );
-                          if (d != null) setState(() => _fechaInicio = d);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.flag_circle),
-                        label: Text(
-                          _fechaFin != null
-                              ? 'Fin: ${_formatOnlyDate(_fechaFin!)}'
-                              : 'Sin fecha fin',
-                        ),
-                        onPressed: () async {
-                          final d = await showDatePicker(
-                            context: context,
-                            initialDate: _fechaFin ?? _fechaInicio,
-                            firstDate: _fechaInicio,
-                            lastDate: DateTime(2100),
-                          );
-                          setState(() => _fechaFin = d);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-
-              const SizedBox(height: 40),
-
-              // Botones
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        side: const BorderSide(
-                          color: Color(0xFFE5E7EB),
-                          width: 2,
-                        ),
-                        foregroundColor: const Color(0xFF6B7280),
-                      ),
-                      child: const Text(
-                        'Cancelar',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isIngreso
-                              ? [
-                                  const Color(0xFF10B981),
-                                  const Color(0xFF059669),
-                                ]
-                              : [
-                                  const Color(0xFFEF4444),
-                                  const Color(0xFFDC2626),
-                                ],
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color:
-                                (isIngreso
-                                        ? const Color(0xFF10B981)
-                                        : const Color(0xFFEF4444))
-                                    .withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () => _handleCreate(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: Text(
-                          'Crear ${isIngreso ? 'Ingreso' : 'Gasto'}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  /// Cuenta propuesta: la última usada para este tipo; si no, la de más saldo.
+  Cuenta? _cuentaPropuesta(List<Cuenta> cuentas) {
+    if (cuentas.isEmpty) return null;
+    final id = _cuentaId ?? _ultimaCuenta[_tipo];
+    final match = cuentas.where((c) => c.id == id).firstOrNull;
+    if (match != null) return match;
+    return ([...cuentas]
+          ..sort((a, b) => (b.saldoActual ?? b.saldoInicial)
+              .compareTo(a.saldoActual ?? a.saldoInicial)))
+        .first;
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        color: Color(0xFF1F2937),
-      ),
-    );
+  /// Categorías del tipo, las más usadas en los últimos 90 días primero.
+  List<Categoria> _categoriasOrdenadas(
+    List<Categoria> all,
+    List<Transaccion> trans,
+  ) {
+    final desde = DateTime.now().subtract(const Duration(days: 90));
+    final usos = <int, int>{};
+    for (final t in trans) {
+      if (t.tipoNombre != _tipo || t.categoriaId == null) continue;
+      if (t.fechaTransaccion.isBefore(desde)) continue;
+      usos[t.categoriaId!] = (usos[t.categoriaId!] ?? 0) + 1;
+    }
+    return all
+        .where((c) => c.activo && (c.tipo == _tipo || c.tipo == 'AMBOS'))
+        .toList()
+      ..sort((a, b) {
+        final byUse = (usos[b.id] ?? 0).compareTo(usos[a.id] ?? 0);
+        return byUse != 0
+            ? byUse
+            : a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase());
+      });
   }
 
-  void _handleCreate() async {
-    if (!_formKey.currentState!.validate()) return;
+  void _onNota(String nota, List<Transaccion> trans, List<Categoria> cats) {
+    if (_categoriaElegida) return;
+    final sugerida = sugerirCategoriaPorNota(
+      nota,
+      _tipo,
+      trans,
+      cats.map((c) => c.id).toSet(),
+    );
+    if (sugerida != null && sugerida != _categoriaId) {
+      setState(() => _categoriaId = sugerida);
+    }
+  }
 
-    if (_selectedCuenta == null || _selectedCategoria == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor completa todos los campos requeridos'),
-          backgroundColor: Colors.red,
-        ),
+  Future<void> _pickCuenta(List<Cuenta> cuentas, Cuenta? actual) async {
+    final picked = await showBrandPicker<int>(
+      context,
+      title: 'Cuenta',
+      selected: actual?.id,
+      options: [
+        for (final c in cuentas)
+          BrandOption(
+            c.id,
+            c.nombre,
+            subtitle: 'Saldo ${_money.format(c.saldoActual ?? c.saldoInicial)}',
+            icon: accountStyle(c.tipo).icon,
+            color: accountStyle(c.tipo).fg,
+          ),
+      ],
+    );
+    if (picked != null) setState(() => _cuentaId = picked);
+  }
+
+  Future<void> _pickMetodo() async {
+    final picked = await showBrandPicker<int>(
+      context,
+      title: 'Método de pago',
+      selected: _metodoPagoId ?? 0,
+      options: [
+        const BrandOption(0, 'Sin especificar'),
+        for (final (id, nombre) in _metodosPago) BrandOption(id, nombre),
+      ],
+    );
+    if (picked != null) setState(() => _metodoPagoId = picked == 0 ? null : picked);
+  }
+
+  DateTime _conHoraActual(DateTime dia) {
+    final ahora = DateTime.now();
+    return DateTime(dia.year, dia.month, dia.day, ahora.hour, ahora.minute, ahora.second);
+  }
+
+  Future<void> _save(Cuenta? cuenta, Categoria? categoria) async {
+    final monto = _monto.value;
+    if (monto == null || monto <= 0) {
+      showBrandSnack(context, 'Escribe el monto');
+      return;
+    }
+    if (categoria == null) {
+      showBrandSnack(context, 'Elige una categoría');
+      return;
+    }
+    if (cuenta == null) {
+      showBrandSnack(context, 'Primero crea una cuenta en Perfil → Mis cuentas');
+      return;
+    }
+    // Una tarjeta de crédito puede quedar en negativo; las demás cuentas no.
+    // Al editar, el saldo todavía incluye el movimiento original: se descuenta
+    var saldo = cuenta.saldoActual ?? cuenta.saldoInicial;
+    final original = widget.editar;
+    if (original != null && original.cuentaId == cuenta.id) {
+      if (original.tipoNombre == 'GASTO') saldo += original.monto;
+      if (original.tipoNombre == 'INGRESO') saldo -= original.monto;
+    }
+    if (!_isIngreso && cuenta.tipo != 'TARJETA_CREDITO' && monto > saldo) {
+      showBrandSnack(
+        context,
+        'Saldo insuficiente en ${cuenta.nombre}: tienes ${_money.format(saldo)}',
       );
       return;
     }
 
-    // Validar saldo suficiente si es un gasto
-    if (widget.tipoTransaccion != 'INGRESO') {
-      final monto = double.tryParse(_montoController.text);
-      if (monto != null) {
-        final saldoActual = _selectedCuenta!.saldoActual ?? _selectedCuenta!.saldoInicial;
-        if (monto > saldoActual) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Saldo insuficiente. Saldo disponible: ${_selectedCuenta!.moneda} ${saldoActual.toStringAsFixed(2)}',
-              ),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
-        }
-      }
-    }
-
+    setState(() => _saving = true);
+    final nota = _notaCtrl.text.trim();
+    if (original != null) return _guardarCambios(original, cuenta, categoria, monto, nota);
     try {
-      final request = CreateTransaccionRequest(
-        cuentaId: _selectedCuenta!.id,
-        tipoTransaccionId: _tipoTransaccionId!,
-        categoriaId: _selectedCategoria!.id,
-        metodoPagoId: _selectedMetodoPagoId,
-        monto: double.parse(_montoController.text),
-        moneda: 'COP',
-        titulo: _tituloController.text.trim().isNotEmpty
-            ? _tituloController.text.trim()
-            : null,
-        descripcion: _descripcionController.text.trim().isNotEmpty
-            ? _descripcionController.text.trim()
-            : null,
-        // Enviar solo la fecha seleccionada (sin hora) - el backend combinará con la hora actual del sistema
-        // Extraer solo año, mes, día de la fecha seleccionada
-        fechaTransaccion: DateTime(
-          _selectedDate.year,
-          _selectedDate.month,
-          _selectedDate.day,
-          0, // Hora 0 - el servidor usará la hora actual
-          0, // Minutos 0
-          0, // Segundos 0
+      await ref.read(transactionsNotifierProvider.notifier).createTransaction(
+        CreateTransaccionRequest(
+          cuentaId: cuenta.id,
+          tipoTransaccionId: _isIngreso ? 1 : 2,
+          categoriaId: categoria.id,
+          metodoPagoId: _metodoPagoId,
+          monto: monto,
+          moneda: cuenta.moneda,
+          titulo: nota.isEmpty ? null : nota,
+          // La fecha elegida con la hora actual del teléfono: el servidor la
+          // guarda tal cual, así sirve en cualquier país
+          fechaTransaccion: _conHoraActual(_fecha),
+          repetir: _repetir,
         ),
-        notas: _notasController.text.trim().isNotEmpty
-            ? _notasController.text.trim()
-            : null,
-        repetir: _repetir,
       );
+      await FormPrefs.setInt(FormPrefs.lastAccount(_tipo), cuenta.id);
 
-      await ref
-          .read(transactionsNotifierProvider.notifier)
-          .createTransaction(request);
-
-      // Si se marcó repetir, crear la regla recurrente
       if (_repetir) {
-        final api = RecurringService(ApiClient());
-        final freq = _frecuencia;
-        int? diaV = (freq != 'SEMANAL' && freq != 'DIARIO')
-            ? (_diaVencimiento ?? _selectedDate.day)
-            : null;
-        int? diaS = (freq == 'SEMANAL')
-            ? (_diaSemana ?? _selectedDate.weekday)
-            : null;
-
-        String fmt(DateTime d) =>
-            '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-        final ruleReq = CreatePagoRecurrenteRequest(
-          categoriaId: _selectedCategoria!.id,
-          cuentaId: _selectedCuenta!.id,
-          metodoPagoId: _selectedMetodoPagoId,
-          monto: double.parse(_montoController.text),
-          descripcion: _tituloController.text.trim().isNotEmpty
-              ? _tituloController.text.trim()
-              : (_descripcionController.text.trim().isNotEmpty
-                    ? _descripcionController.text.trim()
-                    : 'Pago recurrente'),
-          frecuencia: freq,
-          diaVencimiento: diaV,
-          diaSemana: diaS,
-          fechaInicio: fmt(_fechaInicio),
-          fechaFin: _fechaFin != null ? fmt(_fechaFin!) : null,
-        );
-        await api.createRule(ruleReq);
-      }
-
-      if (context.mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${widget.tipoTransaccion} creado exitosamente'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
+        String fmt(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
+        await ref.read(recurringServiceProvider).createRule(
+          CreatePagoRecurrenteRequest(
+            categoriaId: categoria.id,
+            cuentaId: cuenta.id,
+            metodoPagoId: _metodoPagoId,
+            monto: monto,
+            descripcion: nota.isEmpty ? categoria.nombre : nota,
+            frecuencia: _frecuencia,
+            // El día del cobro se toma de la fecha del movimiento
+            diaVencimiento: _frecuencia == 'SEMANAL' || _frecuencia == 'DIARIO'
+                ? null
+                : _fecha.day,
+            diaSemana: _frecuencia == 'SEMANAL' ? _fecha.weekday : null,
+            fechaInicio: fmt(_fecha),
+            fechaFin: _fechaFin == null ? null : fmt(_fechaFin!),
           ),
         );
+        ref.invalidate(recurringProvider);
       }
+
+      await ref.read(accountsNotifierProvider.notifier).refresh();
+      if (!mounted) return;
+      // true: se guardó (la hoja de registro rápido se cierra al recibirlo)
+      Navigator.of(context).pop(true);
+      showBrandSnack(
+        context,
+        '${_isIngreso ? 'Ingreso' : 'Gasto'} de ${_money.format(monto)} en ${categoria.nombre}',
+        error: false,
+      );
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showBrandSnack(context, e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
-  String _formatOnlyDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
-  }
-
-  // Opciones locales de métodos de pago.
-  // IDs basados en los inserts iniciales de la BD (1..8)
-  List<_MetodoPagoOption> get _metodosPagoOptions => const [
-    _MetodoPagoOption(1, 'Efectivo'),
-    _MetodoPagoOption(2, 'Tarjeta de Débito'),
-    _MetodoPagoOption(3, 'Tarjeta de Crédito'),
-    _MetodoPagoOption(4, 'Transferencia Bancaria'),
-    _MetodoPagoOption(5, 'Cheque'),
-    _MetodoPagoOption(6, 'PayPal'),
-    _MetodoPagoOption(7, 'Apple Pay'),
-    _MetodoPagoOption(8, 'Google Pay'),
-  ];
-
-  Color _parseColor(String? colorStr) {
-    if (colorStr == null || colorStr.isEmpty) {
-      return const Color(0xFF059669);
-    }
+  /// Edición: actualiza el movimiento original (los saldos se recalculan
+  /// solos en el servidor, que los deriva de los movimientos).
+  Future<void> _guardarCambios(
+    Transaccion original,
+    Cuenta cuenta,
+    Categoria categoria,
+    double monto,
+    String nota,
+  ) async {
     try {
-      return Color(int.parse(colorStr.replaceFirst('#', '0xFF')));
+      final o = original.fechaTransaccion;
+      await ref.read(transactionsNotifierProvider.notifier).updateTransaction(
+        original.id,
+        UpdateTransaccionRequest(
+          cuentaId: cuenta.id,
+          tipoTransaccionId: _isIngreso ? 1 : 2,
+          categoriaId: categoria.id,
+          metodoPagoId: _metodoPagoId,
+          monto: monto,
+          moneda: cuenta.moneda,
+          titulo: nota, // '' borra la nota
+          // La fecha elegida conservando la hora original del movimiento
+          fechaTransaccion: DateTime(
+            _fecha.year,
+            _fecha.month,
+            _fecha.day,
+            o.hour,
+            o.minute,
+            o.second,
+          ),
+        ),
+      );
+      // Compra registrada automáticamente: la tarjeta queda asociada a la
+      // cuenta elegida para las próximas compras con ella
+      await CompraAutomatica.aprenderTarjeta(original.notas, cuenta.id);
+      await ref.read(accountsNotifierProvider.notifier).refresh();
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+      showBrandSnack(context, 'Movimiento actualizado', error: false);
     } catch (e) {
-      return const Color(0xFF059669);
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showBrandSnack(context, e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
-  IconData _getIcon(String? icono) {
-    if (icono == null) return Icons.account_balance;
-    switch (icono) {
-      case 'account_balance':
-        return Icons.account_balance;
-      case 'account_balance_wallet':
-        return Icons.account_balance_wallet;
-      case 'credit_card':
-        return Icons.credit_card;
-      case 'savings':
-        return Icons.savings;
-      case 'wallet':
-        return Icons.wallet;
-      case 'payments':
-        return Icons.payments;
-      case 'trending_up':
-        return Icons.trending_up;
-      case 'attach_money':
-        return Icons.attach_money;
-      default:
-        return Icons.account_balance;
+  @override
+  Widget build(BuildContext context) {
+    final cuentasAsync = ref.watch(accountsNotifierProvider);
+    final cuentas = (cuentasAsync.valueOrNull ?? const <Cuenta>[])
+        .where((c) => c.activa)
+        .toList();
+    final sinCuentas = cuentasAsync.hasValue && cuentas.isEmpty;
+    final trans = ref.watch(transactionsNotifierProvider).valueOrNull ?? const [];
+    final categorias = _categoriasOrdenadas(
+      ref.watch(categoriesNotifierProvider).valueOrNull ?? const [],
+      trans,
+    );
+    // Nota precargada: sugerir la categoría en cuanto hay datos para hacerlo
+    if (_categoriaId == null &&
+        !_categoriaElegida &&
+        _notaCtrl.text.isNotEmpty &&
+        trans.isNotEmpty) {
+      _categoriaId = sugerirCategoriaPorNota(
+        _notaCtrl.text,
+        _tipo,
+        trans,
+        categorias.map((c) => c.id).toSet(),
+      );
     }
-  }
 
-  Widget _buildSaldoResultante() {
-    if (_selectedCuenta == null) return const SizedBox.shrink();
-    
-    final saldoActual = _selectedCuenta!.saldoActual ?? _selectedCuenta!.saldoInicial;
-    final montoTexto = _montoController.text.trim();
-    final monto = double.tryParse(montoTexto) ?? 0.0;
-    
-    if (monto <= 0) {
-      return const SizedBox.shrink();
-    }
-    
-    final saldoResultante = saldoActual - monto;
-    final tieneSaldoSuficiente = saldoResultante >= 0;
-    
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Transform.scale(
-          scale: 0.95 + (value * 0.05),
-          child: Opacity(
-            opacity: value,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: tieneSaldoSuficiente ? Colors.green.shade50 : Colors.red.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: tieneSaldoSuficiente ? Colors.green.shade200 : Colors.red.shade200,
-                  width: 1.5,
-                ),
-                // Glassmorphism effect
-                boxShadow: [
-                  BoxShadow(
-                    color: (tieneSaldoSuficiente ? Colors.green : Colors.red).withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+    final cuenta = _cuentaPropuesta(cuentas);
+    final categoria = categorias.where((c) => c.id == _categoriaId).firstOrNull;
+    final moneda = cuenta?.moneda ?? 'COP';
+    final tone = _isIngreso ? Brand.accent : Brand.expense;
+    final tipoLabel = _editando
+        ? (_isIngreso ? 'Editar ingreso' : 'Editar gasto')
+        : (_isIngreso ? 'Ingreso' : 'Gasto');
+    final nota = _notaCtrl.text.trim();
+    final hoy = DateUtils.isSameDay(_fecha, DateTime.now());
+
+    return Scaffold(
+      backgroundColor: Brand.bg,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Panel de color: tipo, monto y categorías ───────────────
+              FormPanel(
+                color: tone,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      PanelCircleButton(
+                        icon: Icons.close_rounded,
+                        label: 'Cerrar',
+                        onTap: () => Navigator.of(context).maybePop(),
+                      ),
+                      PanelTabs<String>(
+                        options: const [('GASTO', 'Gasto'), ('INGRESO', 'Ingreso')],
+                        value: _tipo,
+                        tone: tone,
+                        onChanged: (v) => setState(() {
+                          _tipo = v;
+                          _cuentaId = null; // vuelve a la última cuenta de ese tipo
+                          if (categoria != null &&
+                              categoria.tipo != 'AMBOS' &&
+                              categoria.tipo != v) {
+                            _categoriaId = null;
+                            _categoriaElegida = false;
+                          }
+                        }),
+                      ),
+                      PanelBadge(moneda),
+                    ],
                   ),
-                  BoxShadow(
-                    color: Colors.white.withOpacity(0.5),
-                    blurRadius: 4,
-                    offset: const Offset(-1, -1),
+                  PanelAmount(
+                    entry: _monto,
+                    sign: _isIngreso ? '+' : '−',
+                    label: categoria == null
+                        ? tipoLabel
+                        : '$tipoLabel en ${categoria.nombre}'
+                              '${_categoriaElegida ? '' : ' · sugerida'}',
                   ),
+                  const SizedBox(height: 10),
+                  if (categorias.isEmpty)
+                    Text(
+                      'No tienes categorías de este tipo. Créalas en Perfil → Categorías.',
+                      textAlign: TextAlign.center,
+                      style: Brand.text(size: 13, color: Colors.white),
+                    )
+                  else
+                    // Deslizable, de borde a borde del panel; las más usadas primero
+                    SizedBox(
+                      height: 40,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        clipBehavior: Clip.none,
+                        itemCount: categorias.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) {
+                          final c = categorias[i];
+                          return PanelPill(
+                            label: c.nombre,
+                            selected: c.id == _categoriaId,
+                            tone: tone,
+                            onTap: () => setState(() {
+                              _categoriaId = c.id;
+                              _categoriaElegida = true;
+                            }),
+                          );
+                        },
+                      ),
+                    ),
                 ],
               ),
-              child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                tieneSaldoSuficiente ? Icons.check_circle : Icons.error,
-                color: tieneSaldoSuficiente ? Colors.green.shade700 : Colors.red.shade700,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Saldo de la cuenta',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: tieneSaldoSuficiente ? Colors.green.shade700 : Colors.red.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+              const SizedBox(height: 14),
+
+              // ── Cuenta · Fecha · Nota ──────────────────────────────────
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Saldo actual',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0.0, end: saldoActual),
-                        duration: const Duration(milliseconds: 800),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, animatedValue, child) {
-                          // Formatear con separadores de miles (puntos) y sin decimales .00
-                          final formatter = NumberFormat('#,###', 'es_CO');
-                          final formattedValue = animatedValue % 1 == 0
-                              ? formatter.format(animatedValue.toInt())
-                              : formatter.format(animatedValue).replaceAll(RegExp(r'\.?0+$'), '');
-                          return Text(
-                            '${_selectedCuenta!.moneda} $formattedValue',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1F2937),
-                              letterSpacing: -0.8,
-                              height: 1.1,
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                  Expanded(
+                    child: FormActionButton(
+                      icon: cuenta == null
+                          ? Icons.account_balance_wallet_outlined
+                          : accountStyle(cuenta.tipo).icon,
+                      label: cuenta?.nombre ?? 'Cuenta',
+                      onTap: cuentas.isEmpty ? null : () => _pickCuenta(cuentas, cuenta),
+                    ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Saldo resultante',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      TweenAnimationBuilder<double>(
-                        tween: Tween(begin: saldoActual, end: saldoResultante),
-                        duration: const Duration(milliseconds: 800),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, animatedValue, child) {
-                          // Formatear con separadores de miles (puntos) y sin decimales .00
-                          final formatter = NumberFormat('#,###', 'es_CO');
-                          final formattedValue = animatedValue % 1 == 0
-                              ? formatter.format(animatedValue.toInt())
-                              : formatter.format(animatedValue).replaceAll(RegExp(r'\.?0+$'), '');
-                          return Text(
-                            '${_selectedCuenta!.moneda} $formattedValue',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: tieneSaldoSuficiente ? Colors.green.shade700 : Colors.red.shade700,
-                              letterSpacing: -0.8,
-                              height: 1.1,
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-          if (!tieneSaldoSuficiente) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning, color: Colors.red.shade700, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      'El monto excede el saldo disponible',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.red.shade700,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    child: FormActionButton(
+                      icon: Icons.calendar_today_outlined,
+                      label: hoy ? 'Hoy' : brandDateLabel(_fecha).split(',').first,
+                      highlighted: !hoy,
+                      onTap: () async {
+                        final d = await pickBrandDate(
+                          context,
+                          initial: _fecha,
+                          last: DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (d != null) setState(() => _fecha = d);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FormActionButton(
+                      icon: Icons.edit_outlined,
+                      label: nota.isNotEmpty
+                          ? nota
+                          : _repetir
+                          ? PagoRecurrente.frecuencias[_frecuencia] ?? 'Nota'
+                          : 'Nota',
+                      highlighted: nota.isNotEmpty || _repetir || _metodoPagoId != null,
+                      onTap: () => _abrirDetalles(trans, categorias),
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ],
+              if (sinCuentas) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Primero crea una cuenta en Perfil → Mis cuentas.',
+                  style: Brand.text(size: 12, color: Brand.expense),
+                ),
+              ],
+              const SizedBox(height: 14),
+
+              // ── Teclado (llena el espacio) y guardar ───────────────────
+              Expanded(
+                child: AmountKeypad(
+                  entry: _monto,
+                  decimals: monedaConCentavos(moneda),
+                  expand: true,
+                ),
               ),
-            ),
+              const SizedBox(height: 14),
+              ListenableBuilder(
+                listenable: _monto,
+                builder: (_, __) => BrandButton(
+                  label: _monto.isEmpty
+                      ? 'Escribe un monto'
+                      : _editando
+                      ? 'Guardar cambios'
+                      : _isIngreso
+                      ? 'Guardar ingreso'
+                      : 'Guardar gasto',
+                  background: Brand.ink,
+                  loading: _saving,
+                  onPressed: _monto.isEmpty ? null : () => _save(cuenta, categoria),
+                ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
-}
 
-class _MetodoPagoOption {
-  final int id;
-  final String nombre;
-  const _MetodoPagoOption(this.id, this.nombre);
+  /// Nota, método de pago y repetición, en una hoja aparte para que el
+  /// formulario quede con lo esencial.
+  Future<void> _abrirDetalles(
+    List<Transaccion> trans,
+    List<Categoria> categorias,
+  ) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Brand.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) {
+          // Cambia el formulario y vuelve a pintar la hoja
+          void update(VoidCallback f) {
+            setState(f);
+            setSheet(() {});
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom,
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Brand.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Detalles', style: Brand.text(size: 20, weight: FontWeight.w800)),
+                    const SizedBox(height: 14),
+                    BrandGroup(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: SizedBox(
+                            height: 54,
+                            child: Row(
+                              children: [
+                                Text('Nota', style: Brand.text(size: 14, color: Brand.muted)),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _notaCtrl,
+                                    autofocus: _notaCtrl.text.isEmpty,
+                                    textAlign: TextAlign.right,
+                                    textCapitalization: TextCapitalization.sentences,
+                                    textInputAction: TextInputAction.done,
+                                    onSubmitted: (_) => Navigator.of(sheetCtx).pop(),
+                                    onChanged: (v) {
+                                      update(() {});
+                                      _onNota(v, trans, categorias);
+                                    },
+                                    cursorColor: Brand.accent,
+                                    style: Brand.text(size: 14, weight: FontWeight.w700),
+                                    decoration: InputDecoration(
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                      hintText: 'Ej: Almuerzo, Uber…',
+                                      hintStyle: Brand.text(size: 14, color: Brand.placeholder),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        BrandGroupRow(
+                          label: 'Método de pago',
+                          value: _metodosPago
+                                  .where((m) => m.$1 == _metodoPagoId)
+                                  .firstOrNull
+                                  ?.$2 ??
+                              'Opcional',
+                          placeholder: _metodoPagoId == null,
+                          onTap: () async {
+                            await _pickMetodo();
+                            setSheet(() {});
+                          },
+                        ),
+                      ],
+                    ),
+                    // Repetir solo al crear: editar no crea pagos recurrentes
+                    if (!_editando) ...[
+                    const SizedBox(height: 10),
+                    BrandGroup(
+                      children: [
+                        BrandSwitchRow(
+                          title: 'Se repite',
+                          subtitle: 'Se registrará solo en cada fecha',
+                          value: _repetir,
+                          onChanged: (v) => update(() => _repetir = v),
+                        ),
+                        if (_repetir) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final e in PagoRecurrente.frecuencias.entries)
+                                  ChoiceChip(
+                                    label: Text(e.value),
+                                    selected: _frecuencia == e.key,
+                                    onSelected: (_) => update(() => _frecuencia = e.key),
+                                    showCheckmark: false,
+                                    selectedColor: Brand.ink,
+                                    backgroundColor: Brand.surface,
+                                    side: BorderSide(
+                                      color: _frecuencia == e.key ? Brand.ink : Brand.border,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    labelStyle: Brand.text(
+                                      size: 13,
+                                      weight: FontWeight.w700,
+                                      color: _frecuencia == e.key ? Colors.white : Brand.ink,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          BrandGroupRow(
+                            label: 'Termina',
+                            value: _fechaFin == null ? 'Nunca' : brandDateLabel(_fechaFin!),
+                            onTap: () async {
+                              final d = await pickBrandDate(
+                                context,
+                                initial: _fechaFin ?? _fecha.add(const Duration(days: 365)),
+                                first: _fecha,
+                              );
+                              update(() => _fechaFin = d);
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                    ],
+                    const SizedBox(height: 16),
+                    BrandButton(
+                      label: 'Listo',
+                      background: Brand.ink,
+                      onPressed: () => Navigator.of(sheetCtx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }

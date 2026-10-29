@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- La compilación de release borra los recursos que el código no nombra.
+     Estos se piden por su nombre en texto desde Dart, así que se conservan:
+     - ic_shortcut_*: accesos directos (mantener presionado el ícono), que
+       pide quick_actions; sin esto salían sin ícono.
+     - ic_stat_financially: ícono de las notificaciones. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_shortcut_*,@drawable/ic_stat_financially" />

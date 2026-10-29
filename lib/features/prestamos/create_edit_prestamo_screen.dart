@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/models/prestamo_models.dart';
 import '../../core/models/cuenta_models.dart';
-import 'prestamos_provider.dart';
+import '../../core/models/prestamo_models.dart';
+import '../../core/theme/brand.dart';
+import '../../core/theme/brand_form.dart';
+import '../accounts/account_style.dart';
 import '../accounts/accounts_provider.dart';
+import '../transactions/transactions_provider.dart';
+import 'prestamos_provider.dart';
 
+/// Crear o editar un préstamo. DEUDA = yo debo · PRESTAMO = me deben.
 class CreateEditPrestamoScreen extends ConsumerStatefulWidget {
   final Prestamo? prestamo;
   const CreateEditPrestamoScreen({super.key, this.prestamo});
@@ -17,780 +22,222 @@ class CreateEditPrestamoScreen extends ConsumerStatefulWidget {
 
 class _CreateEditPrestamoScreenState
     extends ConsumerState<CreateEditPrestamoScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nombreController = TextEditingController();
-  final _montoController = TextEditingController();
-  final _tasaController = TextEditingController();
-  final _notasController = TextEditingController();
-  String _tipo = 'DEUDA';
-  DateTime? _fechaInicio;
-  DateTime? _fechaFin;
-  Cuenta? _selectedCuenta;
+  late final _p = widget.prestamo;
+  late final _nombreCtrl = TextEditingController(text: _p?.nombre ?? '');
+  late final _montoCtrl = TextEditingController(
+    text: _p == null ? '' : _p.montoTotal.toStringAsFixed(0),
+  );
+  late final _tasaCtrl = TextEditingController(
+    text: (_p?.tasaInteres ?? 0) > 0 ? _p!.tasaInteres!.toString() : '',
+  );
+  late final _notasCtrl = TextEditingController(text: _p?.notas ?? '');
+  late String _tipo = _p?.tipo ?? 'DEUDA';
+  late DateTime _inicio = _p?.fechaInicio ?? DateTime.now();
+  late DateTime? _fin = _p?.fechaFin;
+  late int? _cuentaId = _p?.cuentaId;
+  bool _registrar = false;
+  bool _saving = false;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.prestamo != null) {
-      final p = widget.prestamo!;
-      _nombreController.text = p.nombre;
-      _montoController.text = p.montoTotal.toStringAsFixed(0);
-      if (p.tasaInteres != null) {
-        _tasaController.text = p.tasaInteres!.toStringAsFixed(2);
-      }
-      _notasController.text = p.notas ?? '';
-      _tipo = p.tipo;
-      _fechaInicio = p.fechaInicio;
-      _fechaFin = p.fechaFin;
-      // La cuenta se cargará desde el provider si existe
-    }
-  }
+  bool get _debo => _tipo == 'DEUDA';
 
   @override
   void dispose() {
-    _nombreController.dispose();
-    _montoController.dispose();
-    _tasaController.dispose();
-    _notasController.dispose();
+    _nombreCtrl.dispose();
+    _montoCtrl.dispose();
+    _tasaCtrl.dispose();
+    _notasCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickCuenta(List<Cuenta> cuentas) async {
+    final picked = await showBrandPicker<int>(
+      context,
+      title: 'Cuenta',
+      selected: _cuentaId ?? 0,
+      options: [
+        const BrandOption(0, 'Ninguna'),
+        for (final c in cuentas)
+          BrandOption(
+            c.id,
+            c.nombre,
+            icon: accountStyle(c.tipo).icon,
+            color: accountStyle(c.tipo).fg,
+          ),
+      ],
+    );
+    if (picked == null) return;
+    setState(() {
+      _cuentaId = picked == 0 ? null : picked;
+      if (_cuentaId == null) _registrar = false;
+    });
+  }
+
+  Future<void> _save() async {
+    final nombre = _nombreCtrl.text.trim();
+    final monto = parseAmount(_montoCtrl.text);
+    final tasaText = _tasaCtrl.text.trim();
+    final tasa = tasaText.isEmpty ? null : parseAmount(tasaText);
+    if (nombre.isEmpty) {
+      showBrandSnack(
+        context,
+        _debo ? '¿A quién le debes? Escribe un nombre' : '¿Quién te debe? Escribe un nombre',
+      );
+      return;
+    }
+    if (monto == null || monto <= 0) {
+      showBrandSnack(context, 'Escribe el monto');
+      return;
+    }
+    if (tasaText.isNotEmpty && (tasa == null || tasa < 0)) {
+      showBrandSnack(context, 'La tasa de interés no es válida');
+      return;
+    }
+    if (_fin != null && _fin!.isBefore(_inicio)) {
+      showBrandSnack(context, 'La fecha de vencimiento debe ser después del inicio');
+      return;
+    }
+    final notas = _notasCtrl.text.trim();
+
+    setState(() => _saving = true);
+    final req = CreatePrestamoRequest(
+      nombre: nombre,
+      tipo: _tipo,
+      montoTotal: monto,
+      tasaInteres: tasa,
+      fechaInicio: _inicio,
+      fechaFin: _fin,
+      cuentaId: _cuentaId,
+      notas: notas.isEmpty ? null : notas,
+      registrarMovimiento: _p == null ? _registrar : null,
+    );
+    try {
+      final notifier = ref.read(prestamosNotifierProvider.notifier);
+      if (_p == null) {
+        await notifier.create(req);
+      } else {
+        await notifier.update(_p.id, req);
+      }
+      if (_p == null && _registrar) {
+        await Future.wait([
+          ref.read(accountsNotifierProvider.notifier).refresh(),
+          ref.read(transactionsNotifierProvider.notifier).refresh(),
+        ]);
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      showBrandSnack(
+        context,
+        _p == null ? 'Préstamo registrado' : 'Préstamo actualizado',
+        error: false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showBrandSnack(context, e.toString().replaceFirst('Exception: ', ''));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEdit = widget.prestamo != null;
-    final tipoColor = _tipo == 'DEUDA'
-        ? const Color(0xFFEF4444)
-        : const Color(0xFF10B981);
-    final accountsAsync = ref.watch(accountsNotifierProvider);
-    
-    // Si estamos editando y no hay cuenta seleccionada, intentar cargarla
-    if (isEdit && widget.prestamo?.cuentaId != null && _selectedCuenta == null) {
-      accountsAsync.whenData((cuentas) {
-        try {
-          final cuenta = cuentas.firstWhere(
-            (c) => c.id == widget.prestamo?.cuentaId,
-          );
-          if (mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              setState(() {
-                _selectedCuenta = cuenta;
-              });
-            });
-          }
-        } catch (e) {
-          // Cuenta no encontrada, dejar _selectedCuenta como null
-        }
-      });
-    }
+    final cuentas = (ref.watch(accountsNotifierProvider).valueOrNull ?? const <Cuenta>[])
+        .where((c) => c.activa)
+        .toList();
+    final cuenta = cuentas.where((c) => c.id == _cuentaId).firstOrNull;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.arrow_back_ios_new,
-              size: 18,
-              color: Color(0xFF1F2937),
-            ),
-          ),
-          onPressed: () => Navigator.of(context).pop(),
+    return BrandFormPage(
+      title: _p == null ? 'Nuevo préstamo' : 'Editar préstamo',
+      submitLabel: _p == null ? 'Guardar préstamo' : 'Guardar cambios',
+      loading: _saving,
+      onSubmit: _save,
+      children: [
+        BrandSegmented<String>(
+          options: const [('DEUDA', 'Debo'), ('PRESTAMO', 'Me deben')],
+          value: _tipo,
+          onChanged: (v) => setState(() => _tipo = v),
         ),
-        title: Text(
-          isEdit ? 'Editar Préstamo' : 'Nuevo Préstamo',
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937),
-            letterSpacing: -0.5,
-          ),
+        const SizedBox(height: 20),
+        BrandAmountInput(
+          controller: _montoCtrl,
+          label: _debo ? 'Cuánto debes' : 'Cuánto prestaste',
+          color: _debo ? Brand.expense : Brand.accent,
+          autofocus: _p == null,
+          decimals: true,
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Vista previa
-              _buildPreviewCard(tipoColor),
-
-              const SizedBox(height: 24),
-
-              // Tipo de préstamo
-              const Text(
-                'Tipo de préstamo',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    _buildTipoChip(
-                      'DEUDA',
-                      'Yo debo',
-                      Icons.arrow_downward_rounded,
-                      const Color(0xFFEF4444),
-                    ),
-                    _buildTipoChip(
-                      'PRESTAMO',
-                      'Yo presto',
-                      Icons.arrow_upward_rounded,
-                      const Color(0xFF10B981),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-              const Text(
-                'Información del préstamo',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _nombreController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre del préstamo *',
-                  hintText: 'Ej: Préstamo a Juan',
-                  prefixIcon: Icon(Icons.person_outline_rounded, color: tipoColor),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: tipoColor, width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                onChanged: (value) => setState(() {}),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'El nombre es requerido' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _montoController,
-                decoration: InputDecoration(
-                  labelText: 'Monto total *',
-                  hintText: '0',
-                  prefixIcon: Icon(Icons.attach_money_rounded, color: tipoColor),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: tipoColor, width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  suffixText: 'COP',
-                ),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                ],
-                onChanged: (value) => setState(() {}),
-                validator: (v) {
-                  final d = double.tryParse(v ?? '');
-                  if (d == null || d <= 0) return 'Ingresa un monto válido';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Cuenta asociada',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 12),
-              accountsAsync.when(
-                data: (cuentas) {
-                  if (cuentas.isEmpty) {
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: const Text(
-                        'No hay cuentas disponibles. Crea una cuenta primero.',
-                        style: TextStyle(color: Color(0xFF6B7280)),
-                      ),
-                    );
-                  }
-                  final cuentasUnicas = cuentas.toSet().toList();
-                  return DropdownButtonFormField<Cuenta>(
-                    initialValue: _selectedCuenta,
-                    decoration: InputDecoration(
-                      labelText: 'Cuenta (opcional)',
-                      prefixIcon: Icon(Icons.account_balance_wallet, color: tipoColor),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: tipoColor, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    hint: const Text('Selecciona una cuenta'),
-                    items: cuentasUnicas.map((cuenta) {
-                      return DropdownMenuItem<Cuenta>(
-                        value: cuenta,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _getIcon(cuenta.icono),
-                              color: _parseColor(cuenta.color),
-                              size: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              cuenta.nombre,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (cuenta) {
-                      setState(() {
-                        _selectedCuenta = cuenta;
-                      });
-                    },
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stack) => Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.red[200]!),
-                  ),
-                  child: Text(
-                    'Error al cargar cuentas',
-                    style: TextStyle(color: Colors.red[800]),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _tasaController,
-                decoration: InputDecoration(
-                  labelText: 'Tasa de interés anual (opcional)',
-                  hintText: '0.00',
-                  prefixIcon: const Icon(Icons.percent_rounded, color: Color(0xFF6B7280)),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: tipoColor, width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  suffixText: '%',
-                ),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,4}')),
-                ],
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Fechas',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildDateButton(
-                      'Fecha de inicio',
-                      _fechaInicio,
-                      Icons.calendar_today_rounded,
-                      () async {
-                        final d = await showDatePicker(
-                          context: context,
-                          initialDate: _fechaInicio ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (d != null) setState(() => _fechaInicio = d);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildDateButton(
-                      'Fecha de fin',
-                      _fechaFin,
-                      Icons.event_rounded,
-                      () async {
-                        final d = await showDatePicker(
-                          context: context,
-                          initialDate: _fechaFin ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (d != null) setState(() => _fechaFin = d);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Notas adicionales',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _notasController,
-                decoration: InputDecoration(
-                  labelText: 'Notas (opcional)',
-                  hintText: 'Agrega información adicional...',
-                  prefixIcon: const Icon(Icons.note_outlined, color: Color(0xFF6B7280)),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: tipoColor, width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                maxLines: 4,
-              ),
-              const SizedBox(height: 32),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        side: const BorderSide(
-                          color: Color(0xFFE5E7EB),
-                          width: 2,
-                        ),
-                        foregroundColor: const Color(0xFF6B7280),
-                      ),
-                      child: const Text(
-                        'Cancelar',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [tipoColor.withOpacity(0.8), tipoColor],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: tipoColor.withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: _handleSubmit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: Text(
-                          isEdit ? 'Guardar Cambios' : 'Crear Préstamo',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
+        const SizedBox(height: 24),
+        BrandField(
+          label: _debo ? '¿A quién le debes?' : '¿Quién te debe?',
+          hint: _debo ? 'Ej: Banco, crédito del carro' : 'Ej: Carlos',
+          controller: _nombreCtrl,
         ),
-      ),
-    );
-  }
-
-  Widget _buildPreviewCard(Color color) {
-    final nombre = _nombreController.text.isEmpty
-        ? 'Vista previa'
-        : _nombreController.text;
-    final monto = _montoController.text.isEmpty
-        ? '0'
-        : _montoController.text;
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'Vista Previa',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF6B7280),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color.withOpacity(0.8), color],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.4),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Icon(
-              _tipo == 'DEUDA'
-                  ? Icons.arrow_downward_rounded
-                  : Icons.arrow_upward_rounded,
-              color: Colors.white,
-              size: 40,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            nombre,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1F2937),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '\$$monto COP',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              _tipo == 'DEUDA' ? 'Yo debo' : 'Yo presto',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTipoChip(String value, String label, IconData icon, Color color) {
-    final isSelected = _tipo == value;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _tipo = value;
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? LinearGradient(
-                    colors: [color.withOpacity(0.8), color],
-                  )
-                : null,
-            color: isSelected ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: color.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: isSelected ? Colors.white : const Color(0xFF6B7280),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? Colors.white : const Color(0xFF6B7280),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDateButton(
-    String label,
-    DateTime? date,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(height: 18),
+        BrandGroup(
           children: [
-            Row(
-              children: [
-                Icon(icon, size: 18, color: const Color(0xFF6B7280)),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF6B7280),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+            BrandGroupTextRow(
+              label: 'Interés anual',
+              controller: _tasaCtrl,
+              hint: 'Sin intereses',
+              suffix: _tasaCtrl.text.isEmpty ? null : '%',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*[.,]?\d{0,2}')),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              date == null
-                  ? 'Sin definir'
-                  : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: date == null ? const Color(0xFF9CA3AF) : const Color(0xFF1F2937),
-              ),
+            BrandGroupRow(
+              label: 'Inicio',
+              value: brandDateLabel(_inicio),
+              onTap: () async {
+                final d = await pickBrandDate(
+                  context,
+                  initial: _inicio,
+                  last: DateTime.now().add(const Duration(days: 365)),
+                );
+                if (d != null) setState(() => _inicio = d);
+              },
+            ),
+            BrandGroupRow(
+              label: 'Vence',
+              value: _fin == null ? 'Sin fecha' : brandDateLabel(_fin!),
+              placeholder: _fin == null,
+              onTap: () async {
+                final d = await pickBrandDate(
+                  context,
+                  initial: _fin ?? _inicio.add(const Duration(days: 30)),
+                  first: _inicio,
+                );
+                setState(() => _fin = d);
+              },
+            ),
+            BrandGroupRow(
+              label: 'Cuenta',
+              value: cuenta?.nombre ?? 'Ninguna',
+              placeholder: cuenta == null,
+              onTap: () => _pickCuenta(cuentas),
             ),
           ],
         ),
-      ),
+        if (_p == null && _cuentaId != null) ...[
+          const SizedBox(height: 14),
+          BrandGroup(
+            children: [
+              BrandSwitchRow(
+                title: _debo
+                    ? 'Registrar el dinero recibido'
+                    : 'Registrar el dinero entregado',
+                subtitle: _debo
+                    ? 'Crea un ingreso en ${cuenta?.nombre ?? 'la cuenta'}. '
+                          'Apágalo si es un préstamo antiguo.'
+                    : 'Crea un gasto en ${cuenta?.nombre ?? 'la cuenta'}. '
+                          'Apágalo si es un préstamo antiguo.',
+                value: _registrar,
+                onChanged: (v) => setState(() => _registrar = v),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 18),
+        const BrandLabel('Notas (opcional)'),
+        BrandTextArea(controller: _notasCtrl, hint: 'Ej: cuotas de \$200.000 cada mes'),
+      ],
     );
-  }
-
-  void _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) return;
-    final req = CreatePrestamoRequest(
-      nombre: _nombreController.text.trim(),
-      tipo: _tipo,
-      montoTotal: double.parse(_montoController.text),
-      tasaInteres: _tasaController.text.trim().isEmpty
-          ? null
-          : double.parse(_tasaController.text),
-      fechaInicio: _fechaInicio,
-      fechaFin: _fechaFin,
-      cuentaId: _selectedCuenta?.id,
-      notas: _notasController.text.trim().isEmpty
-          ? null
-          : _notasController.text.trim(),
-    );
-    try {
-      if (widget.prestamo == null) {
-        await ref.read(prestamosNotifierProvider.notifier).create(req);
-      } else {
-        await ref
-            .read(prestamosNotifierProvider.notifier)
-            .update(widget.prestamo!.id, req);
-      }
-      if (mounted) Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  Color _parseColor(String? colorStr) {
-    if (colorStr == null || colorStr.isEmpty) {
-      return const Color(0xFF059669);
-    }
-    try {
-      return Color(int.parse(colorStr.replaceFirst('#', '0xFF')));
-    } catch (e) {
-      return const Color(0xFF059669);
-    }
-  }
-
-  IconData _getIcon(String? icono) {
-    if (icono == null) return Icons.account_balance;
-    switch (icono) {
-      case 'account_balance':
-        return Icons.account_balance;
-      case 'account_balance_wallet':
-        return Icons.account_balance_wallet;
-      case 'credit_card':
-        return Icons.credit_card;
-      case 'savings':
-        return Icons.savings;
-      case 'wallet':
-        return Icons.wallet;
-      case 'payments':
-        return Icons.payments;
-      case 'trending_up':
-        return Icons.trending_up;
-      case 'attach_money':
-        return Icons.attach_money;
-      default:
-        return Icons.account_balance;
-    }
   }
 }

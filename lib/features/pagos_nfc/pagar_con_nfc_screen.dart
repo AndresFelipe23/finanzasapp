@@ -17,7 +17,8 @@ class PagarConNfcScreen extends ConsumerStatefulWidget {
   ConsumerState<PagarConNfcScreen> createState() => _PagarConNfcScreenState();
 }
 
-class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with SingleTickerProviderStateMixin {
+class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _montoCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
@@ -64,7 +65,10 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1F2937)),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Color(0xFF1F2937),
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Column(
@@ -105,13 +109,13 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                     gradient: LinearGradient(
                       colors: [
                         const Color(0xFF10B981),
-                        const Color(0xFF10B981).withOpacity(0.8),
+                        const Color(0xFF10B981).withValues(alpha: 0.8),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF10B981).withOpacity(0.3),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -137,7 +141,7 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                             Text(
                               'Detectando tarjeta NFC...',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
+                                color: Colors.white.withValues(alpha: 0.9),
                                 fontSize: 13,
                               ),
                             ),
@@ -173,7 +177,10 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                       decoration: InputDecoration(
                         labelText: 'Monto',
                         hintText: '0.00',
-                        prefixIcon: const Icon(Icons.payments, color: Color(0xFF10B981)),
+                        prefixIcon: const Icon(
+                          Icons.payments,
+                          color: Color(0xFF10B981),
+                        ),
                         prefixText: '\$ ',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -185,7 +192,10 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF10B981),
+                            width: 2,
+                          ),
                         ),
                         filled: true,
                         fillColor: Colors.grey[50],
@@ -195,13 +205,18 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF1F2937),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}'),
+                        ),
                       ],
                       validator: (v) {
                         final d = double.tryParse(v ?? '');
-                        if (d == null || d <= 0) return 'Ingresa un monto válido';
+                        if (d == null || d <= 0)
+                          return 'Ingresa un monto válido';
                         return null;
                       },
                     ),
@@ -222,15 +237,23 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                     // Tarjeta NFC
                     tarjetasAsync.when(
                       data: (tarjetas) {
-                        final activeTarjetas = tarjetas.where((t) => t.activa).toList();
+                        final activeTarjetas = tarjetas
+                            .where((t) => t.activa)
+                            .toList();
                         // Validar que _tarjetaId esté en la lista, si no, usar null
-                        final validTarjetaId = activeTarjetas.any((t) => t.id == _tarjetaId) ? _tarjetaId : null;
+                        final validTarjetaId =
+                            activeTarjetas.any((t) => t.id == _tarjetaId)
+                            ? _tarjetaId
+                            : null;
                         return DropdownButtonFormField<int?>(
                           initialValue: validTarjetaId,
                           decoration: InputDecoration(
                             labelText: 'Tarjeta NFC',
                             hintText: 'Selecciona o escanea',
-                            prefixIcon: const Icon(Icons.credit_card, color: Color(0xFF3B82F6)),
+                            prefixIcon: const Icon(
+                              Icons.credit_card,
+                              color: Color(0xFF3B82F6),
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(color: Colors.grey[300]!),
@@ -241,14 +264,18 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF3B82F6),
+                                width: 2,
+                              ),
                             ),
                             filled: true,
                             fillColor: Colors.grey[50],
                           ),
                           isExpanded: true,
                           items: activeTarjetas.map((t) {
-                            final color = _parseColor(t.color) ?? const Color(0xFF3B82F6);
+                            final color =
+                                _parseColor(t.color) ?? const Color(0xFF3B82F6);
                             return DropdownMenuItem(
                               value: t.id,
                               child: Row(
@@ -277,12 +304,15 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                               _tarjetaId = v;
                               // Si se selecciona una tarjeta, heredar su cuenta
                               if (v != null) {
-                                final tarjeta = activeTarjetas.firstWhere((t) => t.id == v);
+                                final tarjeta = activeTarjetas.firstWhere(
+                                  (t) => t.id == v,
+                                );
                                 _cuentaId = tarjeta.cuentaId;
                               }
                             });
                           },
-                          validator: (v) => null, // Opcional, se puede detectar con NFC
+                          validator: (v) =>
+                              null, // Opcional, se puede detectar con NFC
                         );
                       },
                       loading: () => const SizedBox(
@@ -304,7 +334,10 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                         decoration: InputDecoration(
                           labelText: 'Cuenta',
                           hintText: 'Heredará de la tarjeta',
-                          prefixIcon: const Icon(Icons.account_balance_wallet, color: Color(0xFFF59E0B)),
+                          prefixIcon: const Icon(
+                            Icons.account_balance_wallet,
+                            color: Color(0xFFF59E0B),
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(color: Colors.grey[300]!),
@@ -315,7 +348,10 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFF59E0B),
+                              width: 2,
+                            ),
                           ),
                           filled: true,
                           fillColor: Colors.grey[50],
@@ -326,10 +362,12 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                             value: null,
                             child: Text('Usar cuenta de la tarjeta'),
                           ),
-                          ...cuentas.map((c) => DropdownMenuItem<int?>(
-                                value: c.id,
-                                child: Text(c.nombre),
-                              )),
+                          ...cuentas.map(
+                            (c) => DropdownMenuItem<int?>(
+                              value: c.id,
+                              child: Text(c.nombre),
+                            ),
+                          ),
                         ],
                         onChanged: (v) => setState(() => _cuentaId = v),
                       ),
@@ -352,7 +390,10 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                         decoration: InputDecoration(
                           labelText: 'Categoría',
                           hintText: 'Sin categoría',
-                          prefixIcon: const Icon(Icons.category, color: Color(0xFF8B5CF6)),
+                          prefixIcon: const Icon(
+                            Icons.category,
+                            color: Color(0xFF8B5CF6),
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(color: Colors.grey[300]!),
@@ -363,7 +404,10 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF8B5CF6),
+                              width: 2,
+                            ),
                           ),
                           filled: true,
                           fillColor: Colors.grey[50],
@@ -374,10 +418,12 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                             value: null,
                             child: Text('Sin categoría'),
                           ),
-                          ...cats.map((c) => DropdownMenuItem<int?>(
-                                value: c.id,
-                                child: Text(c.nombre),
-                              )),
+                          ...cats.map(
+                            (c) => DropdownMenuItem<int?>(
+                              value: c.id,
+                              child: Text(c.nombre),
+                            ),
+                          ),
                         ],
                         onChanged: (v) => setState(() => _categoriaId = v),
                       ),
@@ -399,7 +445,10 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                       decoration: InputDecoration(
                         labelText: 'Descripción (opcional)',
                         hintText: 'Ej: Compra en supermercado',
-                        prefixIcon: const Icon(Icons.description, color: Color(0xFF6B7280)),
+                        prefixIcon: const Icon(
+                          Icons.description,
+                          color: Color(0xFF6B7280),
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -410,7 +459,10 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF6B7280), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF6B7280),
+                            width: 2,
+                          ),
                         ),
                         filled: true,
                         fillColor: Colors.grey[50],
@@ -432,10 +484,10 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withOpacity(0.1),
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFF3B82F6).withOpacity(0.3),
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -467,9 +519,9 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
     return tarjetasAsync.when(
       data: (tarjetas) {
         final tarjeta = tarjetas.cast<dynamic>().firstWhere(
-              (t) => t.id == _tarjetaId,
-              orElse: () => null,
-            );
+          (t) => t.id == _tarjetaId,
+          orElse: () => null,
+        );
         if (tarjeta == null) return const SizedBox.shrink();
 
         final color = _parseColor(tarjeta.color) ?? const Color(0xFF3B82F6);
@@ -479,14 +531,14 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
           height: 100,
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [color, color.withOpacity(0.7)],
+              colors: [color, color.withValues(alpha: 0.7)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.3),
+                color: color.withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -502,9 +554,12 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
+                        color: Colors.white.withValues(alpha: 0.25),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -517,7 +572,11 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                         ),
                       ),
                     ),
-                    const Icon(Icons.contactless, color: Colors.white, size: 24),
+                    const Icon(
+                      Icons.contactless,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ],
                 ),
                 Column(
@@ -536,7 +595,7 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                     Text(
                       tarjeta.banco?.toUpperCase() ?? 'SIN BANCO',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),
@@ -561,7 +620,7 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -577,7 +636,7 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: const Color(0xFF3B82F6).withOpacity(0.1),
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 18, color: const Color(0xFF3B82F6)),
@@ -605,15 +664,16 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
             boxShadow: _isProcessing
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF10B981)
-                          .withOpacity(0.3 + (_pulseController.value * 0.3)),
+                      color: const Color(
+                        0xFF10B981,
+                      ).withValues(alpha: 0.3 + (_pulseController.value * 0.3)),
                       blurRadius: 20,
                       spreadRadius: _pulseController.value * 5,
                     ),
                   ]
                 : [
                     BoxShadow(
-                      color: const Color(0xFF3B82F6).withOpacity(0.3),
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -644,10 +704,7 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
                 : const Icon(Icons.nfc, size: 28),
             label: Text(
               _isProcessing ? 'Acerca tu tarjeta NFC...' : 'Pagar con NFC',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
         );
@@ -708,7 +765,8 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
         // No enviar fechaTransaccion - el backend usará la fecha/hora actual del servidor
         if (_cuentaId != null) 'cuentaId': _cuentaId,
         if (_categoriaId != null) 'categoriaId': _categoriaId,
-        if (_descCtrl.text.trim().isNotEmpty) 'descripcion': _descCtrl.text.trim(),
+        if (_descCtrl.text.trim().isNotEmpty)
+          'descripcion': _descCtrl.text.trim(),
       };
 
       await service.create(body);
@@ -745,9 +803,7 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
         ),
         backgroundColor: const Color(0xFF10B981),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -764,9 +820,7 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
         ),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -808,16 +862,12 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
           children: [
             const Icon(Icons.check_circle, color: Colors.white),
             const SizedBox(width: 12),
-            Expanded(
-              child: Text('Tarjeta detectada: ${match.nombrePortador}'),
-            ),
+            Expanded(child: Text('Tarjeta detectada: ${match.nombrePortador}')),
           ],
         ),
         backgroundColor: const Color(0xFF10B981),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -832,9 +882,7 @@ class _PagarConNfcScreenState extends ConsumerState<PagarConNfcScreen> with Sing
     return showDialog<String?>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _NfcScanDialog(
-        onScan: _leerUid,
-      ),
+      builder: (context) => _NfcScanDialog(onScan: _leerUid),
     );
   }
 
@@ -949,7 +997,8 @@ class _NfcScanDialog extends StatefulWidget {
   State<_NfcScanDialog> createState() => _NfcScanDialogState();
 }
 
-class _NfcScanDialogState extends State<_NfcScanDialog> with SingleTickerProviderStateMixin {
+class _NfcScanDialogState extends State<_NfcScanDialog>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   int _elapsedSeconds = 0;
   bool _cancelled = false;
@@ -1017,7 +1066,9 @@ class _NfcScanDialogState extends State<_NfcScanDialog> with SingleTickerProvide
                   height: 100,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFF10B981).withOpacity(0.2 + (_animController.value * 0.3)),
+                    color: const Color(
+                      0xFF10B981,
+                    ).withValues(alpha: 0.2 + (_animController.value * 0.3)),
                   ),
                   child: Center(
                     child: Icon(
@@ -1058,10 +1109,7 @@ class _NfcScanDialogState extends State<_NfcScanDialog> with SingleTickerProvide
                 const SizedBox(height: 8),
                 Text(
                   '💡 Mueve lentamente la tarjeta para encontrar el sensor NFC',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -1072,10 +1120,10 @@ class _NfcScanDialogState extends State<_NfcScanDialog> with SingleTickerProvide
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withOpacity(0.1),
+                color: const Color(0xFF10B981).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xFF10B981).withOpacity(0.3),
+                  color: const Color(0xFF10B981).withValues(alpha: 0.3),
                 ),
               ),
               child: Row(
@@ -1086,7 +1134,9 @@ class _NfcScanDialogState extends State<_NfcScanDialog> with SingleTickerProvide
                     height: 12,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFF10B981),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1108,12 +1158,12 @@ class _NfcScanDialogState extends State<_NfcScanDialog> with SingleTickerProvide
               onPressed: _cancel,
               style: TextButton.styleFrom(
                 foregroundColor: Colors.grey[700],
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
+                ),
               ),
-              child: const Text(
-                'Cancelar',
-                style: TextStyle(fontSize: 16),
-              ),
+              child: const Text('Cancelar', style: TextStyle(fontSize: 16)),
             ),
           ],
         ),

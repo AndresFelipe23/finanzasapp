@@ -10,7 +10,8 @@ class PagosNfcHistoryScreen extends ConsumerStatefulWidget {
   const PagosNfcHistoryScreen({super.key});
 
   @override
-  ConsumerState<PagosNfcHistoryScreen> createState() => _PagosNfcHistoryScreenState();
+  ConsumerState<PagosNfcHistoryScreen> createState() =>
+      _PagosNfcHistoryScreenState();
 }
 
 class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
@@ -29,9 +30,15 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
       }
       if (_rango != null) {
         list = list
-            .where((p) =>
-                p.fechaPago.isAfter(_rango!.start.subtract(const Duration(seconds: 1))) &&
-                p.fechaPago.isBefore(_rango!.end.add(const Duration(seconds: 1))))
+            .where(
+              (p) =>
+                  p.fechaPago.isAfter(
+                    _rango!.start.subtract(const Duration(seconds: 1)),
+                  ) &&
+                  p.fechaPago.isBefore(
+                    _rango!.end.add(const Duration(seconds: 1)),
+                  ),
+            )
             .toList();
       }
       list.sort((a, b) => b.fechaPago.compareTo(a.fechaPago));
@@ -39,7 +46,8 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
     }
 
     // Calcular resumen para UI
-    double totalFiltrado(List<PagoNfc> items) => filtrar(items).fold(0.0, (s, p) => s + p.monto);
+    double totalFiltrado(List<PagoNfc> items) =>
+        filtrar(items).fold(0.0, (s, p) => s + p.monto);
     int cantidadFiltrada(List<PagoNfc> items) => filtrar(items).length;
 
     return Scaffold(
@@ -71,7 +79,9 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Color(0xFF6B7280)),
-            onPressed: () => ref.read(pagosNfcProvider.notifier).refresh(tarjetaId: _tarjetaFiltroId),
+            onPressed: () => ref
+                .read(pagosNfcProvider.notifier)
+                .refresh(tarjetaId: _tarjetaFiltroId),
             tooltip: 'Actualizar',
           ),
         ],
@@ -92,14 +102,19 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                         value: null,
                         child: Row(
                           children: [
-                            Icon(Icons.credit_card, size: 18, color: Color(0xFF6B7280)),
+                            Icon(
+                              Icons.credit_card,
+                              size: 18,
+                              color: Color(0xFF6B7280),
+                            ),
                             SizedBox(width: 8),
                             Text('Todas las tarjetas'),
                           ],
                         ),
                       ),
                       ...tarjetas.map((t) {
-                        final color = _parseColor(t.color) ?? const Color(0xFF3B82F6);
+                        final color =
+                            _parseColor(t.color) ?? const Color(0xFF3B82F6);
                         return DropdownMenuItem<int?>(
                           value: t.id,
                           child: Row(
@@ -129,11 +144,16 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                       items: items,
                       onChanged: (v) {
                         setState(() => _tarjetaFiltroId = v);
-                        ref.read(pagosNfcProvider.notifier).refresh(tarjetaId: v);
+                        ref
+                            .read(pagosNfcProvider.notifier)
+                            .refresh(tarjetaId: v);
                       },
                       decoration: InputDecoration(
                         labelText: 'Filtrar por tarjeta',
-                        prefixIcon: const Icon(Icons.credit_card, color: Color(0xFF3B82F6)),
+                        prefixIcon: const Icon(
+                          Icons.credit_card,
+                          color: Color(0xFF3B82F6),
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -144,7 +164,10 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF3B82F6),
+                            width: 2,
+                          ),
                         ),
                         filled: true,
                         fillColor: Colors.grey[50],
@@ -188,7 +211,10 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                     style: const TextStyle(color: Color(0xFF1F2937)),
                   ),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 16,
+                    ),
                     side: BorderSide(color: Colors.grey[300]!),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -203,9 +229,7 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                       onPressed: () => setState(() => _rango = null),
                       icon: const Icon(Icons.clear, size: 18),
                       label: const Text('Limpiar filtro de fecha'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red,
-                      ),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
                     ),
                   ),
               ],
@@ -220,7 +244,11 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
               data: (items) {
                 final total = totalFiltrado(items);
                 final count = cantidadFiltrada(items);
-                final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0);
+                final fmt = NumberFormat.currency(
+                  locale: 'es_CO',
+                  symbol: '\$',
+                  decimalDigits: 0,
+                );
                 return Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -251,7 +279,10 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                   ),
                 );
               },
-              loading: () => const SizedBox(height: 64, child: Center(child: CircularProgressIndicator())),
+              loading: () => const SizedBox(
+                height: 64,
+                child: Center(child: CircularProgressIndicator()),
+              ),
               error: (e, _) => const SizedBox.shrink(),
             ),
           ),
@@ -267,7 +298,9 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                 // Agrupar por fecha
                 final groupedByDate = <String, List<PagoNfc>>{};
                 for (final pago in data) {
-                  final dateKey = DateFormat('yyyy-MM-dd').format(pago.fechaPago);
+                  final dateKey = DateFormat(
+                    'yyyy-MM-dd',
+                  ).format(pago.fechaPago);
                   groupedByDate.putIfAbsent(dateKey, () => []).add(pago);
                 }
 
@@ -275,18 +308,20 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                 final sortedDates = groupedByDate.keys.toList()
                   ..sort((a, b) => b.compareTo(a));
 
-                 return RefreshIndicator(
-                   onRefresh: () => ref.read(pagosNfcProvider.notifier).refresh(tarjetaId: _tarjetaFiltroId),
-                   child: ListView.builder(
-                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                     itemCount: sortedDates.length,
-                     itemBuilder: (_, i) {
-                       final dateKey = sortedDates[i];
-                       final pagos = groupedByDate[dateKey]!;
-                       return _buildDateSection(dateKey, pagos);
-                     },
-                   ),
-                 );
+                return RefreshIndicator(
+                  onRefresh: () => ref
+                      .read(pagosNfcProvider.notifier)
+                      .refresh(tarjetaId: _tarjetaFiltroId),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                    itemCount: sortedDates.length,
+                    itemBuilder: (_, i) {
+                      final dateKey = sortedDates[i];
+                      final pagos = groupedByDate[dateKey]!;
+                      return _buildDateSection(dateKey, pagos);
+                    },
+                  ),
+                );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => _buildErrorState(e.toString()),
@@ -305,7 +340,7 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF3B82F6).withOpacity(0.1),
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -327,10 +362,7 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
           const Text(
             'Ajusta los filtros para ver más resultados',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
         ],
       ),
@@ -377,7 +409,11 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
 
     // Calcular total del día
     final totalDia = pagos.fold<double>(0, (sum, p) => sum + p.monto);
-    final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0);
+    final fmt = NumberFormat.currency(
+      locale: 'es_CO',
+      symbol: '\$',
+      decimalDigits: 0,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,9 +432,12 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withOpacity(0.1),
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -420,7 +459,11 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
   }
 
   Widget _buildPaymentCard(PagoNfc pago) {
-    final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0);
+    final fmt = NumberFormat.currency(
+      locale: 'es_CO',
+      symbol: '\$',
+      decimalDigits: 0,
+    );
     final timeFmt = DateFormat('HH:mm');
     final df = DateFormat('dd/MM/yyyy HH:mm');
 
@@ -456,7 +499,7 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3B82F6).withOpacity(0.1),
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -483,14 +526,20 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFE5E7EB),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               pago.moneda,
-                              style: const TextStyle(fontSize: 11, color: Color(0xFF374151)),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF374151),
+                              ),
                             ),
                           ),
                         ],
@@ -511,7 +560,8 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                               color: Colors.grey[600],
                             ),
                           ),
-                          if (pago.ubicacion != null && pago.ubicacion!.isNotEmpty) ...[
+                          if (pago.ubicacion != null &&
+                              pago.ubicacion!.isNotEmpty) ...[
                             const SizedBox(width: 12),
                             Icon(
                               Icons.location_on,
@@ -541,9 +591,12 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withOpacity(0.1),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -556,7 +609,11 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+                    Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey[400],
+                      size: 20,
+                    ),
                   ],
                 ),
               ],
@@ -567,7 +624,12 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
     );
   }
 
-  Widget _miniStat({required String label, required String value, required Color color, required IconData icon}) {
+  Widget _miniStat({
+    required String label,
+    required String value,
+    required Color color,
+    required IconData icon,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
@@ -579,18 +641,31 @@ class _PagosNfcHistoryScreenState extends ConsumerState<PagosNfcHistoryScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Icon(icon, size: 18, color: color),
           ),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+              Text(
+                label,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
               const SizedBox(height: 2),
-              Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color)),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
             ],
-          )
+          ),
         ],
       ),
     );
@@ -613,14 +688,17 @@ class _DetallePagoSheet extends ConsumerWidget {
   final PagoNfc p;
   final DateFormat df;
   final NumberFormat formato;
-  const _DetallePagoSheet({required this.p, required this.df, required this.formato});
+  const _DetallePagoSheet({
+    required this.p,
+    required this.df,
+    required this.formato,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tarjetas = ref.watch(tprov.tarjetasNfcProvider).maybeWhen(
-          data: (list) => list,
-          orElse: () => null,
-        );
+    final tarjetas = ref
+        .watch(tprov.tarjetasNfcProvider)
+        .maybeWhen(data: (list) => list, orElse: () => null);
     String tarjetaLabel = '#${p.tarjetaNfcId}';
     if (tarjetas != null) {
       final match = tarjetas.where((x) => x.id == p.tarjetaNfcId);
@@ -647,7 +725,7 @@ class _DetallePagoSheet extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3B82F6).withOpacity(0.1),
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -671,10 +749,7 @@ class _DetallePagoSheet extends ConsumerWidget {
                       ),
                       Text(
                         'ID: ${p.id}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -702,10 +777,7 @@ class _DetallePagoSheet extends ConsumerWidget {
                 children: [
                   const Text(
                     'Monto Total',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -721,14 +793,20 @@ class _DetallePagoSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
             // Información detallada
-            _infoRow(Icons.calendar_today, 'Fecha y Hora', df.format(p.fechaPago)),
+            _infoRow(
+              Icons.calendar_today,
+              'Fecha y Hora',
+              df.format(p.fechaPago),
+            ),
             _infoRow(Icons.credit_card, 'Tarjeta', tarjetaLabel),
             _infoRow(Icons.receipt, 'Transacción ID', '#${p.transaccionId}'),
             FutureBuilder<int?>(
               future: DeviceRegistry.getCachedDeviceId(),
               builder: (context, snap) {
                 String disp = '#${p.dispositivoNfcId}';
-                if (snap.hasData && snap.data != null && snap.data == p.dispositivoNfcId) {
+                if (snap.hasData &&
+                    snap.data != null &&
+                    snap.data == p.dispositivoNfcId) {
                   disp = 'Este dispositivo (#${p.dispositivoNfcId})';
                 }
                 return _infoRow(Icons.phone_android, 'Dispositivo', disp);
@@ -737,7 +815,11 @@ class _DetallePagoSheet extends ConsumerWidget {
             if (p.ubicacion != null && p.ubicacion!.isNotEmpty)
               _infoRow(Icons.location_on, 'Ubicación', p.ubicacion!),
             if (p.latitud != null && p.longitud != null)
-              _infoRow(Icons.my_location, 'Coordenadas', '${p.latitud}, ${p.longitud}'),
+              _infoRow(
+                Icons.my_location,
+                'Coordenadas',
+                '${p.latitud}, ${p.longitud}',
+              ),
             const SizedBox(height: 24),
           ],
         ),

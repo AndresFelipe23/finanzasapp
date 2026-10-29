@@ -1,1631 +1,1116 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/auth_models.dart';
+import '../../core/models/cuenta_models.dart';
+import '../../core/models/pago_recurrente_models.dart';
+import '../../core/models/presupuesto_models.dart';
 import '../../core/models/transaccion_models.dart';
-import '../../core/theme/glass.dart';
-import '../../core/theme/neo_bank_theme.dart';
+import '../../core/theme/brand.dart';
+import '../accounts/accounts_provider.dart';
+import '../accounts/accounts_screen.dart';
+import '../accounts/account_transactions_screen.dart';
+import '../prestamos/prestamos_screen.dart';
+import '../presupuestos/presupuestos_provider.dart';
+import '../presupuestos/presupuestos_screen.dart';
+import '../recurring/recurring_provider.dart';
 import '../transactions/create_transaction_screen.dart';
 import '../transactions/create_transfer_screen.dart';
+import '../transactions/transaction_detail_sheet.dart';
 import '../transactions/transactions_provider.dart' as tprov;
-import '../accounts/accounts_provider.dart';
-import '../accounts/account_transactions_screen.dart';
+import 'home_charts.dart';
+import '../../core/currency/exchange_rates.dart';
 
-// ─── Home Screen ──────────────────────────────────────────────────────────────
-class HomeScreen extends ConsumerStatefulWidget {
-  final UserResponse user;
-  final VoidCallback? openDrawer;
+final _money = NumberFormat.currency(
+  symbol: '\$',
+  decimalDigits: 0,
+  locale: 'es_CO',
+);
 
-  const HomeScreen({super.key, required this.user, this.openDrawer});
+String _capitalize(String s) =>
+    s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
-  @override
-  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+bool _isThisMonth(DateTime d) {
+  final now = DateTime.now();
+  return d.year == now.year && d.month == now.month;
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
-  void _showAppInfoDialog(BuildContext context) {
-    final tk = context.tokens;
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: GlassContainer(
-          strong: true,
-          blurSigma: tk.blurChrome,
-          borderRadius: BorderRadius.circular(tk.radiusLg),
-          padding: const EdgeInsets.all(28),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: tk.accent.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.account_balance_wallet_rounded,
-                    color: tk.accent,
-                    size: 36,
-                  ),
+/// Presupuestos activos cuyo periodo incluye hoy.
+List<Presupuesto> _currentBudgets(List<Presupuesto> items) {
+  final now = DateTime.now();
+  return items
+      .where(
+        (p) =>
+            p.activo &&
+            p.montoLimite > 0 &&
+            !now.isBefore(p.fechaInicio) &&
+            !now.isAfter(p.fechaFin.add(const Duration(days: 1))),
+      )
+      .toList();
+}
+
+// ─── Home Screen ──────────────────────────────────────────────────────────────
+class HomeScreen extends ConsumerWidget {
+  final UserResponse user;
+  final VoidCallback? openDrawer;
+  final VoidCallback? openProfile;
+  final VoidCallback? openMovements;
+
+  const HomeScreen({
+    super.key,
+    required this.user,
+    this.openDrawer,
+    this.openProfile,
+    this.openMovements,
+  });
+
+  void _push(BuildContext context, Widget screen) => Navigator.of(
+    context,
+    rootNavigator: true,
+  ).push(MaterialPageRoute(builder: (_) => screen));
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cuentasAsync = ref.watch(accountsNotifierProvider);
+    final transAsync = ref.watch(tprov.transactionsNotifierProvider);
+    final presupAsync = ref.watch(presupuestosNotifierProvider);
+
+    return Scaffold(
+      backgroundColor: Brand.bg,
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          color: Brand.accent,
+          onRefresh: () async {
+            await Future.wait([
+              ref.read(accountsNotifierProvider.notifier).refresh(),
+              ref.read(tprov.transactionsNotifierProvider.notifier).refresh(),
+              ref.read(presupuestosNotifierProvider.notifier).refresh(),
+            ]);
+          },
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            children: [
+              _Header(
+                user: user,
+                onAvatar: openDrawer,
+                onBell: () => _showAlerts(context),
+              ),
+              const SizedBox(height: 20),
+              _BalanceCard(
+                cuentasAsync: cuentasAsync,
+                transAsync: transAsync,
+                moneda: user.monedaPredeterminada ?? 'COP',
+              ),
+              const SizedBox(height: 20),
+              _QuickActions(
+                onIncome: () => _push(
+                  context,
+                  const CreateTransactionScreen(tipoTransaccion: 'INGRESO'),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Financially',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: tk.primary,
-                    letterSpacing: -0.5,
-                  ),
+                onExpense: () => _push(
+                  context,
+                  const CreateTransactionScreen(tipoTransaccion: 'GASTO'),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Versión 1.0.0',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: tk.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _infoBlock(
-                  context: context,
-                  icon: Icons.description_outlined,
-                  title: 'Sobre la App',
-                  body:
-                      'Aplicación de gestión financiera personal diseñada para ayudarte a controlar tus ingresos, gastos y metas de manera sencilla y eficiente.',
-                ),
-                const SizedBox(height: 12),
-                _infoBlock(
-                  context: context,
-                  icon: Icons.person_outline_rounded,
-                  title: 'Desarrollador',
-                  body: 'AFESDEV\nafesdev2025@gmail.com',
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: tk.primary,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: Text(
-                      'Cerrar',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+                onTransfer: () => _push(context, const CreateTransferScreen()),
+                onLoan: () => _push(context, const PrestamosScreen()),
+              ),
+              const SizedBox(height: 20),
+              _BudgetCard(
+                presupAsync: presupAsync,
+                onOpen: () => _push(context, const PresupuestosScreen()),
+              ),
+              const SizedBox(height: 24),
+              _SectionHeader(
+                title: 'Mis cuentas',
+                onSeeAll: () => _push(context, const AccountsScreen()),
+              ),
+              const SizedBox(height: 10),
+              _AccountsStrip(
+                cuentasAsync: cuentasAsync,
+                onOpen: (c) =>
+                    _push(context, AccountTransactionsScreen(cuenta: c)),
+                onEmpty: () => _push(context, const AccountsScreen()),
+              ),
+              const SizedBox(height: 24),
+              _SectionHeader(
+                title: 'Movimientos recientes',
+                onSeeAll: openMovements,
+              ),
+              const SizedBox(height: 4),
+              _RecentMovements(transAsync: transAsync),
+              const SizedBox(height: 24),
+              const _SectionHeader(title: 'Gastos por categoría'),
+              const SizedBox(height: 10),
+              GastoPorCategoriaChart(transAsync: transAsync),
+              const SizedBox(height: 24),
+              const _SectionHeader(title: 'Últimos 6 meses'),
+              const SizedBox(height: 10),
+              IngresosGastosChart(transAsync: transAsync),
+            ],
           ),
         ),
       ),
     );
   }
 
-  void _showAddSheet(BuildContext context) {
+  void _showAlerts(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      useRootNavigator: true,
+      backgroundColor: Brand.surface,
       isScrollControlled: true,
-      barrierColor: Colors.black.withValues(alpha: 0.4),
-      builder: (_) => _AddTransactionSheet(),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) => const _AlertsSheet(),
     );
   }
+}
 
-  Widget _infoBlock({
-    required BuildContext context,
-    required IconData icon,
-    required String title,
-    required String body,
-  }) {
-    final tk = context.tokens;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: tk.glassFill,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: tk.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: tk.accent),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: tk.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            body,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              color: tk.textSecondary,
-              height: 1.6,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+// ─── Encabezado ───────────────────────────────────────────────────────────────
+class _Header extends StatelessWidget {
+  const _Header({required this.user, this.onAvatar, this.onBell});
+
+  final UserResponse user;
+  final VoidCallback? onAvatar;
+  final VoidCallback? onBell;
 
   @override
   Widget build(BuildContext context) {
-    final tk = context.tokens;
-    final cuentasAsync = ref.watch(accountsNotifierProvider);
-    final transAsync = ref.watch(tprov.transactionsNotifierProvider);
-
-    final firstName = widget.user.nombre.split(' ').first;
     final hour = DateTime.now().hour;
     final greeting = hour < 12
         ? 'Buenos días'
         : hour < 18
         ? 'Buenas tardes'
         : 'Buenas noches';
-    final initials = widget.user.nombre
-        .split(' ')
+    final initials = user.nombre
+        .trim()
+        .split(RegExp(r'\s+'))
         .take(2)
         .map((e) => e.isNotEmpty ? e[0].toUpperCase() : '')
         .join();
+    final firstName = user.nombre.trim().split(RegExp(r'\s+')).first;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddSheet(context),
-        backgroundColor: tk.accent,
-        elevation: 4,
-        icon: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
-        label: Text(
-          'Nueva',
-          style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          // ── Header ─────────────────────────────────────────────────────
-          GlassContainer(
-            blurSigma: tk.blurChrome,
-            shadow: false,
-            borderRadius: BorderRadius.zero,
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 12,
-              left: 20,
-              right: 20,
-              bottom: 16,
-            ),
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: widget.openDrawer,
-                  child: Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: tk.accent.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Center(
-                      child: Text(
-                        initials,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: tk.accent,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        greeting,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: tk.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        firstName,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: tk.primary,
-                          height: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _showAppInfoDialog(context),
-                  child: Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: tk.glassFill,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: tk.border),
-                    ),
-                    child: Icon(
-                      Icons.info_outline_rounded,
-                      size: 20,
-                      color: tk.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Contenido ──────────────────────────────────────────────────
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                await ref.read(accountsNotifierProvider.notifier).refresh();
-                await ref
-                    .read(tprov.transactionsNotifierProvider.notifier)
-                    .refresh();
-              },
-              color: tk.accent,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                      child: _ResumenMes(transAsync: transAsync),
-                    ),
-
-                    const SizedBox(height: 32),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _SectionHeader(title: 'Mis Cuentas'),
-                    ),
-                    const SizedBox(height: 14),
-                    cuentasAsync.when(
-                      data: (cuentas) {
-                        if (cuentas.isEmpty) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: _EmptyCard(
-                              message: 'No tienes cuentas registradas',
-                            ),
-                          );
-                        }
-                        return SizedBox(
-                          height: 144,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            scrollDirection: Axis.horizontal,
-                            itemBuilder: (context, i) => _CuentaCard(
-                              nombre: cuentas[i].nombre,
-                              saldo:
-                                  cuentas[i].saldoActual ??
-                                  cuentas[i].saldoInicial,
-                              moneda: cuentas[i].moneda,
-                              colorHex: cuentas[i].color,
-                              index: i,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => AccountTransactionsScreen(
-                                    cuenta: cuentas[i],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(width: 14),
-                            itemCount: cuentas.length,
-                          ),
-                        );
-                      },
-                      loading: () => SizedBox(
-                        height: 144,
-                        child: Center(
-                          child: CircularProgressIndicator(color: tk.accent),
-                        ),
-                      ),
-                      error: (e, _) => Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _ErrorCard(message: 'Error al cargar cuentas'),
-                      ),
-                    ),
-
-                    const SizedBox(height: 32),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _SectionHeader(title: 'Movimientos Recientes'),
-                    ),
-                    const SizedBox(height: 14),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _UltimosMovimientos(transAsync: transAsync),
-                    ),
-
-                    const SizedBox(height: 100),
-                  ],
+    return Row(
+      children: [
+        Semantics(
+          button: true,
+          label: 'Abrir menú',
+          excludeSemantics: true,
+          child: InkWell(
+            onTap: onAvatar,
+            customBorder: const CircleBorder(),
+            child: Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Brand.ink,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                initials,
+                style: Brand.text(
+                  size: 15,
+                  weight: FontWeight.w700,
+                  color: Colors.white,
                 ),
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Section header ───────────────────────────────────────────────────────────
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final tk = context.tokens;
-    return Text(
-      title,
-      style: GoogleFonts.plusJakartaSans(
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-        color: tk.primary,
-      ),
-    );
-  }
-}
-
-// ─── Empty / Error cards ──────────────────────────────────────────────────────
-class _EmptyCard extends StatelessWidget {
-  final String message;
-  const _EmptyCard({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    final tk = context.tokens;
-    return GlassContainer(
-      blur: false,
-      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
-      borderRadius: BorderRadius.circular(tk.radiusSm),
-      child: Center(
-        child: Text(
-          message,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            color: tk.textSecondary,
-          ),
         ),
-      ),
-    );
-  }
-}
-
-class _ErrorCard extends StatelessWidget {
-  final String message;
-  const _ErrorCard({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    final tk = context.tokens;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: tk.danger.withValues(alpha: tk.isDark ? 0.14 : 0.06),
-        borderRadius: BorderRadius.circular(tk.radiusSm),
-        border: Border.all(color: tk.danger.withValues(alpha: 0.2)),
-      ),
-      child: Text(
-        message,
-        style: GoogleFonts.plusJakartaSans(fontSize: 14, color: tk.danger),
-      ),
-    );
-  }
-}
-
-class _AddTransactionSheet extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final tk = context.tokens;
-    return Container(
-      decoration: BoxDecoration(
-        color: tk.surface.withValues(alpha: 0.94),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(top: BorderSide(color: tk.glassStrokeStart)),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: tk.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Nueva transacción',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: tk.primary,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Selecciona el tipo',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: tk.textSecondary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              _SheetOption(
-                icon: Icons.south_rounded,
-                color: tk.success,
-                title: 'Ingreso',
-                subtitle: 'Dinero recibido',
-                onTap: () {
-                  Navigator.pop(context);
-                  Future.microtask(() {
-                    Navigator.of(context, rootNavigator: true).push(
-                      MaterialPageRoute(
-                        builder: (_) => const CreateTransactionScreen(
-                          tipoTransaccion: 'INGRESO',
-                        ),
-                      ),
-                    );
-                  });
-                },
-              ),
-              const SizedBox(height: 10),
-              _SheetOption(
-                icon: Icons.north_rounded,
-                color: tk.danger,
-                title: 'Gasto',
-                subtitle: 'Dinero gastado',
-                onTap: () {
-                  Navigator.pop(context);
-                  Future.microtask(() {
-                    Navigator.of(context, rootNavigator: true).push(
-                      MaterialPageRoute(
-                        builder: (_) => const CreateTransactionScreen(
-                          tipoTransaccion: 'GASTO',
-                        ),
-                      ),
-                    );
-                  });
-                },
-              ),
-              const SizedBox(height: 10),
-              _SheetOption(
-                icon: Icons.swap_horiz_rounded,
-                color: tk.transfer,
-                title: 'Transferencia',
-                subtitle: 'Mover entre cuentas',
-                onTap: () {
-                  Navigator.pop(context);
-                  Future.microtask(() {
-                    Navigator.of(context, rootNavigator: true).push(
-                      MaterialPageRoute(
-                        builder: (_) => const CreateTransferScreen(),
-                      ),
-                    );
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    'Cancelar',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: tk.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SheetOption extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _SheetOption({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tk = context.tokens;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        splashColor: color.withValues(alpha: 0.06),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: tk.bg,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: tk.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        color: tk.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: tk.textSecondary,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Resumen del Mes ──────────────────────────────────────────────────────────
-class _ResumenMes extends StatelessWidget {
-  final AsyncValue<List<dynamic>> transAsync;
-  const _ResumenMes({required this.transAsync});
-
-  @override
-  Widget build(BuildContext context) {
-    final tk = context.tokens;
-    return transAsync.when(
-      data: (items) {
-        final now = DateTime.now();
-        final start = DateTime(now.year, now.month, 1);
-        final end = DateTime(now.year, now.month + 1, 0);
-        double ingresos = 0, gastos = 0;
-
-        for (final t in items) {
-          final ft = (t as dynamic).fechaTransaccion as DateTime;
-          if (ft.isAfter(start.subtract(const Duration(seconds: 1))) &&
-              ft.isBefore(end.add(const Duration(days: 1)))) {
-            if (t.tipoNombre == 'INGRESO') ingresos += t.monto;
-            if (t.tipoNombre == 'GASTO') gastos += t.monto;
-          }
-        }
-
-        final balance = ingresos - gastos;
-        final monthLabel = _capitalize(
-          DateFormat('MMMM yyyy', 'es_ES').format(now),
-        );
-
-        String fmt(double v) => NumberFormat.currency(
-          symbol: '\$',
-          decimalDigits: 0,
-          locale: 'es_CO',
-        ).format(v);
-
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [tk.heroStart, tk.heroEnd],
-            ),
-            borderRadius: BorderRadius.circular(tk.radiusLg),
-            border: Border.all(color: tk.glassStrokeEnd),
-            boxShadow: [
-              BoxShadow(
-                color: tk.heroStart.withValues(alpha: 0.3),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
+        const SizedBox(width: 12),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Balance del mes',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      color: Colors.white.withValues(alpha: 0.55),
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      monthLabel,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        color: Colors.white.withValues(alpha: 0.65),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: balance),
-                duration: const Duration(milliseconds: 900),
-                curve: Curves.easeOutCubic,
-                builder: (_, val, __) => Text(
-                  fmt(val),
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: -1.5,
-                    height: 1.15,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
-
-              const SizedBox(height: 20),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _StatItem(
-                      iconBg: tk.success.withValues(alpha: 0.15),
-                      iconColor: tk.success,
-                      icon: Icons.south_rounded,
-                      label: 'Ingresos',
-                      value: fmt(ingresos),
-                      align: CrossAxisAlignment.start,
-                    ),
-                  ),
-                  Container(
-                    width: 1,
-                    height: 44,
-                    color: Colors.white.withValues(alpha: 0.08),
-                  ),
-                  Expanded(
-                    child: _StatItem(
-                      iconBg: tk.danger.withValues(alpha: 0.15),
-                      iconColor: tk.danger,
-                      icon: Icons.north_rounded,
-                      label: 'Gastos',
-                      value: fmt(gastos),
-                      align: CrossAxisAlignment.end,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-      loading: () => Container(
-        height: 210,
-        decoration: BoxDecoration(
-          color: tk.heroStart,
-          borderRadius: BorderRadius.circular(tk.radiusLg),
-        ),
-        child: const Center(
-          child: CircularProgressIndicator(
-            color: Colors.white38,
-            strokeWidth: 2,
-          ),
-        ),
-      ),
-      error: (e, _) => _ErrorCard(message: 'Error al cargar resumen'),
-    );
-  }
-
-  static String _capitalize(String s) =>
-      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
-}
-
-class _StatItem extends StatelessWidget {
-  final IconData icon;
-  final Color iconBg;
-  final Color iconColor;
-  final String label;
-  final String value;
-  final CrossAxisAlignment align;
-
-  const _StatItem({
-    required this.icon,
-    required this.iconBg,
-    required this.iconColor,
-    required this.label,
-    required this.value,
-    required this.align,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isEnd = align == CrossAxisAlignment.end;
-    return Padding(
-      padding: EdgeInsets.only(left: isEnd ? 16 : 0, right: isEnd ? 0 : 16),
-      child: Column(
-        crossAxisAlignment: align,
-        children: [
-          Row(
-            mainAxisAlignment: isEnd
-                ? MainAxisAlignment.end
-                : MainAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Icon(icon, size: 12, color: iconColor),
-              ),
-              const SizedBox(width: 6),
+              Text(greeting, style: Brand.text(size: 13, color: Brand.muted)),
+              const SizedBox(height: 2),
               Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.5),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Cuenta Card ─────────────────────────────────────────────────────────────
-class _CuentaCard extends StatelessWidget {
-  final String nombre;
-  final double saldo;
-  final String moneda;
-  final String? colorHex;
-  final int index;
-  final VoidCallback? onTap;
-
-  const _CuentaCard({
-    required this.nombre,
-    required this.saldo,
-    required this.moneda,
-    required this.index,
-    this.colorHex,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tk = context.tokens;
-    final color = _parseColor(colorHex) ?? tk.accent;
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 400 + index * 80),
-      curve: Curves.easeOutCubic,
-      builder: (_, value, child) => Opacity(
-        opacity: value,
-        child: Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: child,
-        ),
-      ),
-      child: GlassContainer(
-        blur: false,
-        onTap: onTap,
-        width: 200,
-        borderRadius: BorderRadius.circular(tk.radiusMd),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                color.withValues(alpha: tk.isDark ? 0.22 : 0.12),
-                Colors.transparent,
-              ],
-            ),
-            borderRadius: BorderRadius.circular(tk.radiusMd),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.account_balance_wallet_rounded,
-                      color: color,
-                      size: 17,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: tk.glassFill,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: tk.border),
-                    ),
-                    child: Text(
-                      moneda,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: tk.textSecondary,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                nombre,
+                'Hola, $firstName',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  color: tk.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.0, end: saldo),
-                duration: Duration(milliseconds: 700 + index * 80),
-                curve: Curves.easeOutCubic,
-                builder: (_, val, __) {
-                  final fmt = NumberFormat('#,###', 'es_CO');
-                  return Text(
-                    '\$${fmt.format(val.toInt())}',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: tk.primary,
-                      letterSpacing: -0.8,
-                    ),
-                  );
-                },
+                style: Brand.text(size: 17, weight: FontWeight.w700),
               ),
             ],
           ),
         ),
-      ),
+        _CircleIconButton(
+          icon: Icons.notifications_none_rounded,
+          label: 'Avisos',
+          onTap: onBell,
+        ),
+      ],
     );
   }
-
-  Color? _parseColor(String? h) {
-    if (h == null || h.isEmpty) return null;
-    final s = h.replaceAll('#', '');
-    try {
-      return s.length == 6
-          ? Color(int.parse('FF$s', radix: 16))
-          : Color(int.parse(s, radix: 16));
-    } catch (_) {
-      return null;
-    }
-  }
 }
 
-// ─── Últimos Movimientos ──────────────────────────────────────────────────────
-class _UltimosMovimientos extends StatefulWidget {
-  final AsyncValue<List<dynamic>> transAsync;
-  const _UltimosMovimientos({required this.transAsync});
+class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({required this.icon, required this.label, this.onTap});
 
-  @override
-  State<_UltimosMovimientos> createState() => _UltimosMovimientosState();
-}
-
-class _UltimosMovimientosState extends State<_UltimosMovimientos>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final tk = context.tokens;
-    final money = NumberFormat.currency(
-      symbol: '\$',
-      decimalDigits: 0,
-      locale: 'es_CO',
-    );
-
-    return widget.transAsync.when(
-      data: (items) {
-        final sorted = [...items]
-          ..sort((a, b) => b.fechaTransaccion.compareTo(a.fechaTransaccion));
-        final list = sorted.take(5).toList();
-
-        if (list.isEmpty) {
-          return GlassContainer(
-            blur: false,
-            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
-            borderRadius: BorderRadius.circular(tk.radiusMd),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.receipt_long_rounded,
-                    size: 40,
-                    color: tk.textSecondary.withValues(alpha: 0.4),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'No hay movimientos recientes',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      color: tk.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        return GlassContainer(
-          blur: false,
-          borderRadius: BorderRadius.circular(tk.radiusMd),
-          child: Column(
-            children: list.asMap().entries.map((entry) {
-              final i = entry.key;
-              final t = entry.value as Transaccion;
-              final isLast = i == list.length - 1;
-
-              final delay = i * 0.12;
-              final itemAnim = CurvedAnimation(
-                parent: _ctrl,
-                curve: Interval(
-                  delay.clamp(0.0, 0.8),
-                  (delay + 0.5).clamp(0.0, 1.0),
-                  curve: Curves.easeOutCubic,
-                ),
-              );
-
-              return AnimatedBuilder(
-                animation: itemAnim,
-                builder: (_, child) => Opacity(
-                  opacity: itemAnim.value,
-                  child: Transform.translate(
-                    offset: Offset(0, 16 * (1 - itemAnim.value)),
-                    child: child,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    _TransactionTile(
-                      transaccion: t,
-                      money: money,
-                      onTap: () => _showDetail(context, t, money),
-                    ),
-                    if (!isLast)
-                      Divider(
-                        height: 1,
-                        indent: 72,
-                        endIndent: 16,
-                        color: tk.divider,
-                      ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        );
-      },
-      loading: () => GlassContainer(
-        blur: false,
-        height: 220,
-        borderRadius: BorderRadius.circular(tk.radiusMd),
-        child: Center(
-          child: CircularProgressIndicator(color: tk.accent, strokeWidth: 2),
+    return Material(
+      color: Brand.surface,
+      shape: const CircleBorder(side: BorderSide(color: Brand.border)),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, size: 21, color: Brand.ink, semanticLabel: label),
         ),
       ),
-      error: (e, _) => _ErrorCard(message: 'Error al cargar movimientos'),
-    );
-  }
-
-  void _showDetail(BuildContext context, Transaccion t, NumberFormat money) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.4),
-      builder: (_) => _TransactionDetailSheet(transaccion: t, money: money),
     );
   }
 }
 
-// ─── Transaction Tile ─────────────────────────────────────────────────────────
-class _TransactionTile extends StatelessWidget {
-  final Transaccion transaccion;
-  final NumberFormat money;
-  final VoidCallback onTap;
-
-  const _TransactionTile({
-    required this.transaccion,
-    required this.money,
-    required this.onTap,
+// ─── Saldo total ──────────────────────────────────────────────────────────────
+class _BalanceCard extends ConsumerWidget {
+  const _BalanceCard({
+    required this.cuentasAsync,
+    required this.transAsync,
+    required this.moneda,
   });
 
+  final AsyncValue<List<Cuenta>> cuentasAsync;
+  final AsyncValue<List<Transaccion>> transAsync;
+  final String moneda;
+
   @override
-  Widget build(BuildContext context) {
-    final tk = context.tokens;
-    final t = transaccion;
-    final isIngreso = t.tipoNombre == 'INGRESO';
-    final color = isIngreso ? tk.success : tk.danger;
-    final df = DateFormat('d MMM', 'es_ES');
-    final title = (t.titulo?.isNotEmpty == true)
-        ? t.titulo!
-        : (t.categoriaNombre ?? 'Transacción');
-    final dateStr = df.format(t.fechaTransaccion);
-    final amountStr = (isIngreso ? '+' : '-') + money.format(t.monto);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cuentas = cuentasAsync.valueOrNull ?? const <Cuenta>[];
+    final activas = cuentas.where((c) => c.activa).toList();
+    final delMes = (transAsync.valueOrNull ?? const <Transaccion>[])
+        .where((t) => _isThisMonth(t.fechaTransaccion))
+        .toList();
 
-    final catColor = _parseCatColor(t.categoriaColor) ?? color;
+    // Cuentas o movimientos en otra moneda: se suman convertidos a la
+    // predeterminada (antes se sumaban COP y USD como si fueran lo mismo)
+    final otras = {
+      ...activas.map((c) => c.moneda),
+      ...delMes.map((t) => t.moneda),
+    }.where((m) => m != moneda).toSet();
+    final tasas = otras.isEmpty
+        ? Tasas.sinDatos(moneda)
+        : ref.watch(tasasProvider).valueOrNull ?? Tasas.sinDatos(moneda);
+    final sinTasa = otras.where((m) => !tasas.puede(m)).toList();
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        splashColor: color.withValues(alpha: 0.06),
-        highlightColor: color.withValues(alpha: 0.04),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
+    final total = activas.fold<double>(
+      0,
+      (s, c) => s + tasas.aBase(c.saldoActual ?? c.saldoInicial, c.moneda),
+    );
+    double ingresos = 0, gastos = 0;
+    for (final t in delMes) {
+      if (t.tipoNombre == 'INGRESO') ingresos += tasas.aBase(t.monto, t.moneda);
+      if (t.tipoNombre == 'GASTO') gastos += tasas.aBase(t.monto, t.moneda);
+    }
+    final loading = cuentasAsync.isLoading && cuentas.isEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Brand.ink,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Icono con color de categoría
+              Text(
+                'Saldo total',
+                style: Brand.text(size: 13, color: const Color(0xFFB9C6C0)),
+              ),
               Container(
-                width: 44,
-                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: catColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(13),
+                  color: const Color(0xFF22352E),
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                child: Icon(
-                  isIngreso ? Icons.south_rounded : Icons.north_rounded,
-                  color: catColor,
-                  size: 18,
+                child: Text(
+                  moneda,
+                  style: Brand.text(
+                    size: 12,
+                    weight: FontWeight.w600,
+                    color: const Color(0xFFD6E4DD),
+                  ),
                 ),
               ),
-              const SizedBox(width: 14),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (loading)
+            const SizedBox(
+              height: 44,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Brand.mint,
+                  ),
+                ),
+              ),
+            )
+          else
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _money.format(total),
+                style: Brand.title(size: 36, color: Colors.white),
+              ),
+            ),
+          if (otras.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              sinTasa.isEmpty
+                  ? 'Incluye ${otras.join(', ')} convertido a $moneda con la tasa del día'
+                  : 'Sin tasa de cambio para ${sinTasa.join(', ')}: se suma sin convertir',
+              style: Brand.text(size: 11, color: const Color(0xFFB9C6C0)),
+            ),
+          ],
+          const SizedBox(height: 18),
+          Row(
+            children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: tk.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Text(
-                          dateStr,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: tk.textSecondary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        if (t.categoriaNombre != null) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            width: 3,
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: tk.textSecondary.withValues(alpha: 0.4),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            t.categoriaNombre!,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: tk.textSecondary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
+                child: _MonthTile(
+                  label: 'Ingresos del mes',
+                  value: _money.format(ingresos),
+                  icon: Icons.south_west_rounded,
+                  iconColor: Brand.mint,
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    amountStr,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 16,
-                    color: tk.textSecondary.withValues(alpha: 0.4),
-                  ),
-                ],
+              Expanded(
+                child: _MonthTile(
+                  label: 'Gastos del mes',
+                  value: _money.format(gastos),
+                  icon: Icons.north_east_rounded,
+                  iconColor: Brand.peach,
+                ),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthTile extends StatelessWidget {
+  const _MonthTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.iconColor,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A2D26),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: iconColor),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Brand.text(size: 12, color: const Color(0xFFB9C6C0)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: Brand.text(
+                size: 17,
+                weight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Acciones rápidas ─────────────────────────────────────────────────────────
+class _QuickActions extends StatelessWidget {
+  const _QuickActions({
+    required this.onIncome,
+    required this.onExpense,
+    required this.onTransfer,
+    required this.onLoan,
+  });
+
+  final VoidCallback onIncome;
+  final VoidCallback onExpense;
+  final VoidCallback onTransfer;
+  final VoidCallback onLoan;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget action(IconData icon, Color color, String label, VoidCallback onTap) {
+      return Expanded(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: Brand.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Brand.border),
+                  ),
+                  child: Icon(icon, size: 22, color: color),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: Brand.text(size: 12, weight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        action(Icons.add_rounded, Brand.accent, 'Ingreso', onIncome),
+        const SizedBox(width: 8),
+        action(Icons.remove_rounded, Brand.expense, 'Gasto', onExpense),
+        const SizedBox(width: 8),
+        action(Icons.swap_horiz_rounded, Brand.ink, 'Transferir', onTransfer),
+        const SizedBox(width: 8),
+        action(Icons.credit_card_rounded, Brand.ink, 'Préstamo', onLoan),
+      ],
+    );
+  }
+}
+
+// ─── Presupuesto del mes ──────────────────────────────────────────────────────
+class _BudgetCard extends StatelessWidget {
+  const _BudgetCard({required this.presupAsync, required this.onOpen});
+
+  final AsyncValue<List<Presupuesto>> presupAsync;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = presupAsync.valueOrNull;
+    if (items == null) return const SizedBox.shrink();
+
+    final current = _currentBudgets(items);
+    final mes = _capitalize(DateFormat('MMMM', 'es_ES').format(DateTime.now()));
+
+    if (current.isEmpty) {
+      return _Card(
+        onTap: onOpen,
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Brand.accentSoft,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.pie_chart_outline_rounded,
+                  color: Brand.accent, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Crea tu presupuesto de $mes',
+                    style: Brand.text(weight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Ponle un límite a tus gastos y te avisamos antes de pasarte.',
+                    style: Brand.text(size: 12, color: Brand.muted, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Brand.muted),
+          ],
+        ),
+      );
+    }
+
+    final limite = current.fold<double>(0, (s, p) => s + p.montoLimite);
+    final gastado = current.fold<double>(0, (s, p) => s + p.montoGastado);
+    final pct = (gastado / limite).clamp(0.0, 1.0);
+    final over = gastado > limite;
+    final restante = limite - gastado;
+
+    return _Card(
+      onTap: onOpen,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  current.length == 1
+                      ? current.first.nombre
+                      : 'Presupuesto de $mes',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Brand.text(weight: FontWeight.w700),
+                ),
+              ),
+              Text(
+                'Ver todo',
+                style: Brand.text(
+                  size: 13,
+                  weight: FontWeight.w600,
+                  color: Brand.accent,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(5),
+            child: LinearProgressIndicator(
+              value: pct,
+              minHeight: 10,
+              color: over ? Brand.expense : Brand.accent,
+              backgroundColor: Brand.track,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: _money.format(gastado),
+                        style: Brand.text(size: 13, weight: FontWeight.w700),
+                      ),
+                      TextSpan(text: ' de ${_money.format(limite)}'),
+                    ],
+                  ),
+                  style: Brand.text(size: 13, color: Brand.muted),
+                ),
+              ),
+              Text(
+                over
+                    ? 'Te pasaste ${_money.format(-restante)}'
+                    : 'Quedan ${_money.format(restante)}',
+                style: Brand.text(
+                  size: 13,
+                  weight: over ? FontWeight.w700 : FontWeight.w500,
+                  color: over ? Brand.expense : Brand.muted,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Card extends StatelessWidget {
+  const _Card({required this.child, this.onTap, this.padding});
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Brand.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Brand.border),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: padding ?? const EdgeInsets.all(16),
+          child: child,
         ),
       ),
     );
   }
+}
 
-  Color? _parseCatColor(String? h) {
-    if (h == null || h.isEmpty) return null;
-    final s = h.replaceAll('#', '');
-    try {
-      return s.length == 6
-          ? Color(int.parse('FF$s', radix: 16))
-          : Color(int.parse(s, radix: 16));
-    } catch (_) {
-      return null;
-    }
+// ─── Encabezado de sección ────────────────────────────────────────────────────
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, this.onSeeAll});
+
+  final String title;
+  final VoidCallback? onSeeAll;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(title, style: Brand.text(weight: FontWeight.w700)),
+        ),
+        if (onSeeAll != null)
+          TextButton(
+            onPressed: onSeeAll,
+            style: TextButton.styleFrom(
+              foregroundColor: Brand.accent,
+              minimumSize: const Size(44, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+            child: Text(
+              'Ver todo',
+              style: Brand.text(
+                size: 13,
+                weight: FontWeight.w600,
+                color: Brand.accent,
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 
-// ─── Transaction Detail Sheet ─────────────────────────────────────────────────
-class _TransactionDetailSheet extends StatefulWidget {
-  final Transaccion transaccion;
-  final NumberFormat money;
-
-  const _TransactionDetailSheet({
-    required this.transaccion,
-    required this.money,
+// ─── Cuentas ──────────────────────────────────────────────────────────────────
+class _AccountsStrip extends StatelessWidget {
+  const _AccountsStrip({
+    required this.cuentasAsync,
+    required this.onOpen,
+    required this.onEmpty,
   });
 
+  final AsyncValue<List<Cuenta>> cuentasAsync;
+  final ValueChanged<Cuenta> onOpen;
+  final VoidCallback onEmpty;
+
+  static (IconData, Color, Color) _style(String tipo) => switch (tipo) {
+    'EFECTIVO' => (Icons.payments_outlined, Brand.accent, Brand.accentSoft),
+    'TARJETA_DEBITO' => (Icons.credit_card_outlined, Brand.blue, Brand.blueSoft),
+    'TARJETA_CREDITO' => (
+      Icons.credit_card_outlined,
+      Brand.expense,
+      Brand.expenseSoft,
+    ),
+    'AHORRO' => (Icons.savings_outlined, Brand.accent, Brand.accentSoft),
+    'INVERSION' => (Icons.trending_up_rounded, Brand.blue, Brand.blueSoft),
+    _ => (Icons.account_balance_outlined, Brand.accent, Brand.accentSoft),
+  };
+
   @override
-  State<_TransactionDetailSheet> createState() =>
-      _TransactionDetailSheetState();
+  Widget build(BuildContext context) {
+    return cuentasAsync.when(
+      loading: () => const SizedBox(
+        height: 96,
+        child: Center(
+          child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent),
+        ),
+      ),
+      error: (_, __) => _Card(
+        child: Text(
+          'No se pudieron cargar tus cuentas. Desliza hacia abajo para reintentar.',
+          style: Brand.text(size: 13, color: Brand.expense),
+        ),
+      ),
+      data: (all) {
+        final cuentas = all.where((c) => c.activa).toList();
+        if (cuentas.isEmpty) {
+          return _Card(
+            onTap: onEmpty,
+            child: Row(
+              children: [
+                const Icon(Icons.add_circle_outline_rounded,
+                    color: Brand.accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Agrega tu primera cuenta',
+                    style: Brand.text(weight: FontWeight.w700),
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Brand.muted),
+              ],
+            ),
+          );
+        }
+        return SizedBox(
+          height: 108,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: cuentas.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, i) {
+              final c = cuentas[i];
+              final (icon, fg, bg) = _style(c.tipo);
+              final saldo = c.saldoActual ?? c.saldoInicial;
+              return SizedBox(
+                width: 168,
+                child: _Card(
+                  onTap: () => onOpen(c),
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: bg,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(icon, size: 18, color: fg),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              c.nombre,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Brand.text(
+                                size: 13,
+                                weight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _money.format(saldo),
+                          style: Brand.text(
+                            size: 17,
+                            weight: FontWeight.w800,
+                            color: saldo < 0 ? Brand.expense : Brand.ink,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
 }
 
-class _TransactionDetailSheetState extends State<_TransactionDetailSheet>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _fade;
-  late final Animation<Offset> _slide;
+// ─── Movimientos recientes ────────────────────────────────────────────────────
+class _RecentMovements extends StatelessWidget {
+  const _RecentMovements({required this.transAsync});
 
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 350),
-    );
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 0.15),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    _ctrl.forward();
-  }
+  final AsyncValue<List<Transaccion>> transAsync;
 
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
+  static String _when(DateTime d) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(d.year, d.month, d.day);
+    final diff = today.difference(day).inDays;
+    if (diff == 0) return 'Hoy';
+    if (diff == 1) return 'Ayer';
+    return DateFormat("d 'de' MMM", 'es_ES').format(d);
   }
 
   @override
   Widget build(BuildContext context) {
-    final tk = context.tokens;
-    final t = widget.transaccion;
-    final isIngreso = t.tipoNombre == 'INGRESO';
-    final color = isIngreso ? tk.success : tk.danger;
-    final amountStr = (isIngreso ? '+' : '-') + widget.money.format(t.monto);
+    return transAsync.when(
+      loading: () => const SizedBox(
+        height: 120,
+        child: Center(
+          child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent),
+        ),
+      ),
+      error: (_, __) => _Card(
+        child: Text(
+          'No se pudieron cargar tus movimientos.',
+          style: Brand.text(size: 13, color: Brand.expense),
+        ),
+      ),
+      data: (items) {
+        final list = [...items]
+          ..sort((a, b) => b.fechaTransaccion.compareTo(a.fechaTransaccion));
+        if (list.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'Aún no tienes movimientos. Toca + para registrar el primero.',
+              style: Brand.text(size: 13, color: Brand.muted),
+            ),
+          );
+        }
+        return Column(
+          children: [
+            for (final t in list.take(5))
+              _MovementRow(t: t, when: _when(t.fechaTransaccion)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _MovementRow extends StatelessWidget {
+  const _MovementRow({required this.t, required this.when});
+
+  final Transaccion t;
+  final String when;
+
+  @override
+  Widget build(BuildContext context) {
+    final (fg, bg, icon, sign) = switch (t.tipoNombre) {
+      'INGRESO' => (Brand.accent, Brand.accentSoft, Icons.south_west_rounded, '+'),
+      'GASTO' => (Brand.expense, Brand.expenseSoft, Icons.north_east_rounded, '−'),
+      _ => (Brand.blue, Brand.blueSoft, Icons.swap_horiz_rounded, ''),
+    };
     final title = (t.titulo?.isNotEmpty == true)
         ? t.titulo!
-        : (t.categoriaNombre ?? 'Transacción');
-    final fullDate = DateFormat(
-      'EEEE, d \'de\' MMMM yyyy',
-      'es_ES',
-    ).format(t.fechaTransaccion);
-    final timeStr = DateFormat('h:mm a', 'es_ES').format(t.fechaTransaccion);
+        : (t.categoriaNombre ?? 'Movimiento');
+    final meta = [
+      if (t.cuentaNombre != null) t.cuentaNombre!,
+      when,
+    ].join(' · ');
 
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(
-        position: _slide,
-        child: Container(
-          decoration: BoxDecoration(
-            color: tk.surface.withValues(alpha: 0.94),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border(top: BorderSide(color: tk.glassStrokeStart)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle
-              const SizedBox(height: 12),
-              Container(
+    return InkWell(
+      onTap: () => showTransactionDetail(context, t),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, size: 20, color: fg),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Brand.text(size: 14, weight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    meta,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Brand.text(size: 12, color: Brand.muted),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$sign${_money.format(t.monto)}',
+              style: Brand.text(size: 14, weight: FontWeight.w700, color: fg),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Avisos (campana) ─────────────────────────────────────────────────────────
+class _AlertsSheet extends ConsumerWidget {
+  const _AlertsSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final budgets = _currentBudgets(
+      ref.watch(presupuestosNotifierProvider).valueOrNull ?? const [],
+    ).where((p) => p.porcentaje >= 80).toList();
+
+    final now = DateTime.now();
+    final limit = DateTime(now.year, now.month, now.day + 7);
+    final upcoming = <(PagoRecurrente, DateTime)>[
+      for (final p in ref.watch(recurringProvider).valueOrNull ?? const [])
+        if (p.activo)
+          if (p.proximaFecha() case final f? when !f.isAfter(limit)) (p, f),
+    ]..sort((a, b) => a.$2.compareTo(b.$2));
+
+    final empty = budgets.isEmpty && upcoming.isEmpty;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: tk.border,
+                  color: Brand.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // Monto + tipo
+            ),
+            const SizedBox(height: 20),
+            Text('Avisos', style: Brand.text(size: 20, weight: FontWeight.w800)),
+            const SizedBox(height: 12),
+            if (empty)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Column(
                   children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isIngreso ? Icons.south_rounded : Icons.north_rounded,
-                        color: color,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      amountStr,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w800,
-                        color: color,
-                        letterSpacing: -1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: tk.primary,
-                      ),
-                    ),
+                    const Icon(Icons.check_circle_outline_rounded,
+                        color: Brand.accent, size: 40),
+                    const SizedBox(height: 10),
+                    Text('Todo en orden',
+                        style: Brand.text(weight: FontWeight.w700)),
                     const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        isIngreso ? 'Ingreso' : 'Gasto',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: color,
-                        ),
-                      ),
+                    Text(
+                      'Ningún presupuesto cerca del límite ni pagos esta semana.',
+                      textAlign: TextAlign.center,
+                      style: Brand.text(size: 13, color: Brand.muted),
                     ),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 28),
-              Divider(height: 1, color: tk.divider),
-              const SizedBox(height: 8),
-
-              // Detalles
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                  child: Column(
-                    children: [
-                      _DetailRow(
-                        icon: Icons.calendar_today_rounded,
-                        label: 'Fecha',
-                        value: _capitalize(fullDate),
-                      ),
-                      _DetailRow(
-                        icon: Icons.access_time_rounded,
-                        label: 'Hora',
-                        value: timeStr,
-                      ),
-                      if (t.cuentaNombre != null)
-                        _DetailRow(
-                          icon: Icons.account_balance_wallet_rounded,
-                          label: 'Cuenta',
-                          value: t.cuentaNombre!,
-                        ),
-                      if (t.categoriaNombre != null)
-                        _DetailRow(
-                          icon: Icons.label_rounded,
-                          label: 'Categoría',
-                          value: t.categoriaNombre!,
-                        ),
-                      if (t.metodoPagoNombre != null)
-                        _DetailRow(
-                          icon: Icons.credit_card_rounded,
-                          label: 'Método de pago',
-                          value: t.metodoPagoNombre!,
-                        ),
-                      _DetailRow(
-                        icon: Icons.attach_money_rounded,
-                        label: 'Moneda',
-                        value: t.moneda,
-                      ),
-                      if (t.descripcion != null && t.descripcion!.isNotEmpty)
-                        _DetailRow(
-                          icon: Icons.notes_rounded,
-                          label: 'Descripción',
-                          value: t.descripcion!,
-                          multiline: true,
-                        ),
-                      if (t.notas != null && t.notas!.isNotEmpty)
-                        _DetailRow(
-                          icon: Icons.sticky_note_2_outlined,
-                          label: 'Notas',
-                          value: t.notas!,
-                          multiline: true,
-                        ),
-                    ],
-                  ),
-                ),
+            for (final b in budgets)
+              _AlertRow(
+                icon: Icons.pie_chart_outline_rounded,
+                fg: Brand.expense,
+                bg: Brand.expenseSoft,
+                title: b.sobrepasado
+                    ? 'Superaste "${b.nombre}"'
+                    : 'Casi llegas al límite de "${b.nombre}"',
+                subtitle:
+                    '${b.porcentaje.round()}% usado · ${_money.format(b.montoGastado)} de ${_money.format(b.montoLimite)}',
               ),
-
-              // Botón cerrar
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  24,
-                  0,
-                  24,
-                  MediaQuery.of(context).padding.bottom + 16,
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: tk.primary,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: Text(
-                      'Cerrar',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
+            for (final (p, f) in upcoming)
+              _AlertRow(
+                icon: Icons.autorenew_rounded,
+                fg: Brand.blue,
+                bg: Brand.blueSoft,
+                title: p.descripcion.isEmpty
+                    ? (p.categoriaNombre ?? 'Pago recurrente')
+                    : p.descripcion,
+                subtitle:
+                    '${_money.format(p.monto)} · ${_upcomingLabel(f)}',
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
 
-  static String _capitalize(String s) =>
-      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+  static String _upcomingLabel(DateTime f) {
+    final now = DateTime.now();
+    final diff = DateTime(f.year, f.month, f.day)
+        .difference(DateTime(now.year, now.month, now.day))
+        .inDays;
+    if (diff <= 0) return 'Hoy';
+    if (diff == 1) return 'Mañana';
+    return DateFormat("EEEE d", 'es_ES').format(f);
+  }
 }
 
-// ─── Detail Row ───────────────────────────────────────────────────────────────
-class _DetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool multiline;
-
-  const _DetailRow({
+class _AlertRow extends StatelessWidget {
+  const _AlertRow({
     required this.icon,
-    required this.label,
-    required this.value,
-    this.multiline = false,
+    required this.fg,
+    required this.bg,
+    required this.title,
+    required this.subtitle,
   });
+
+  final IconData icon;
+  final Color fg;
+  final Color bg;
+  final String title;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
-    final tk = context.tokens;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
-        crossAxisAlignment: multiline
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.center,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: tk.bg,
-              borderRadius: BorderRadius.circular(10),
+              color: bg,
+              borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(icon, size: 17, color: tk.textSecondary),
+            child: Icon(icon, size: 20, color: fg),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: tk.textSecondary,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.2,
-                  ),
-                ),
+                Text(title, style: Brand.text(size: 14, weight: FontWeight.w700)),
                 const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: tk.primary,
-                    height: multiline ? 1.5 : 1.2,
-                  ),
-                ),
+                Text(subtitle, style: Brand.text(size: 12, color: Brand.muted)),
               ],
             ),
           ),
@@ -1635,9 +1120,3 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-// ─── Widgets deshabilitados (NFC / Presupuestos) ──────────────────────────────
-// Mantenidos comentados para futura reactivación
-/*
-class _Accesos extends StatelessWidget { ... }
-class _AccesoCard extends StatelessWidget { ... }
-*/

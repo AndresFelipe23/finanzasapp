@@ -84,8 +84,10 @@ class _CreateEditTarjetaNfcScreenState
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Color(0xFF1F2937)),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Color(0xFF1F2937),
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
@@ -125,8 +127,9 @@ class _CreateEditTarjetaNfcScreenState
                   label: 'Nombre del portador',
                   icon: Icons.badge_outlined,
                   hint: 'Ej: Juan Pérez',
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'El nombre es requerido' : null,
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'El nombre es requerido'
+                      : null,
                 ),
               ),
 
@@ -186,17 +189,14 @@ class _CreateEditTarjetaNfcScreenState
       height: 200,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            _cardColor,
-            _cardColor.withOpacity(0.7),
-          ],
+          colors: [_cardColor, _cardColor.withValues(alpha: 0.7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: _cardColor.withOpacity(0.4),
+            color: _cardColor.withValues(alpha: 0.4),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -207,7 +207,9 @@ class _CreateEditTarjetaNfcScreenState
           // Patrón de fondo
           Positioned.fill(
             child: CustomPaint(
-              painter: CardPatternPainter(color: Colors.white.withOpacity(0.1)),
+              painter: CardPatternPainter(
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
             ),
           ),
 
@@ -221,9 +223,11 @@ class _CreateEditTarjetaNfcScreenState
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -236,12 +240,18 @@ class _CreateEditTarjetaNfcScreenState
                         ),
                       ),
                     ),
-                    const Icon(Icons.contactless, color: Colors.white, size: 32),
+                    const Icon(
+                      Icons.contactless,
+                      color: Colors.white,
+                      size: 32,
+                    ),
                   ],
                 ),
                 const Spacer(),
                 Text(
-                  _hashCtrl.text.isEmpty ? '•••• •••• •••• ••••' : _hashCtrl.text,
+                  _hashCtrl.text.isEmpty
+                      ? '•••• •••• •••• ••••'
+                      : _hashCtrl.text,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -259,7 +269,7 @@ class _CreateEditTarjetaNfcScreenState
                         Text(
                           'TITULAR',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
+                            color: Colors.white.withValues(alpha: 0.7),
                             fontSize: 10,
                             letterSpacing: 1,
                           ),
@@ -302,7 +312,7 @@ class _CreateEditTarjetaNfcScreenState
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: const Color(0xFF3B82F6).withOpacity(0.1),
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 18, color: const Color(0xFF3B82F6)),
@@ -328,7 +338,7 @@ class _CreateEditTarjetaNfcScreenState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -378,7 +388,7 @@ class _CreateEditTarjetaNfcScreenState
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
-                  colors: [color, color.withOpacity(0.8)],
+                  colors: [color, color.withValues(alpha: 0.8)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
@@ -392,14 +402,14 @@ class _CreateEditTarjetaNfcScreenState
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: color.withOpacity(0.3),
+                    color: color.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -407,11 +417,7 @@ class _CreateEditTarjetaNfcScreenState
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : color,
-              size: 32,
-            ),
+            Icon(icon, color: isSelected ? Colors.white : color, size: 32),
             const SizedBox(height: 8),
             Text(
               label,
@@ -474,7 +480,7 @@ class _CreateEditTarjetaNfcScreenState
             validator: (v) =>
                 v == null || v.trim().isEmpty ? 'El hash es requerido' : null,
             inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-_.]'))
+              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-_.]')),
             ],
           ),
           const SizedBox(height: 16),
@@ -494,8 +500,9 @@ class _CreateEditTarjetaNfcScreenState
             boxShadow: _isReadingNfc
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF10B981)
-                          .withOpacity(0.3 + (_pulseController.value * 0.3)),
+                      color: const Color(
+                        0xFF10B981,
+                      ).withValues(alpha: 0.3 + (_pulseController.value * 0.3)),
                       blurRadius: 20,
                       spreadRadius: _pulseController.value * 5,
                     ),
@@ -529,10 +536,7 @@ class _CreateEditTarjetaNfcScreenState
               _isReadingNfc
                   ? 'Acerca tu tarjeta al teléfono...'
                   : 'Escanear Tarjeta NFC',
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
           ),
         );
@@ -546,8 +550,10 @@ class _CreateEditTarjetaNfcScreenState
       decoration: InputDecoration(
         labelText: 'Cuenta asociada (opcional)',
         hintText: 'Vincula con una cuenta',
-        prefixIcon:
-            const Icon(Icons.account_balance_outlined, color: Color(0xFFF59E0B)),
+        prefixIcon: const Icon(
+          Icons.account_balance_outlined,
+          color: Color(0xFFF59E0B),
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -566,10 +572,9 @@ class _CreateEditTarjetaNfcScreenState
       isExpanded: true,
       items: [
         const DropdownMenuItem<int?>(value: null, child: Text('Sin cuenta')),
-        ...cuentas
-            .map((c) =>
-                DropdownMenuItem<int?>(value: c.id, child: Text(c.nombre)))
-            ,
+        ...cuentas.map(
+          (c) => DropdownMenuItem<int?>(value: c.id, child: Text(c.nombre)),
+        ),
       ],
       onChanged: (v) => setState(() => _cuentaId = v),
     );
@@ -625,17 +630,16 @@ class _CreateEditTarjetaNfcScreenState
             '#EC4899', // Rosa
             '#14B8A6', // Teal
             '#6366F1', // Indigo
-          ]
-              .map((color) => _buildColorChip(color))
-              .toList(),
+          ].map((color) => _buildColorChip(color)).toList(),
         ),
       ],
     );
   }
 
   Widget _buildColorChip(String hexColor) {
-    final color =
-        Color(int.parse(hexColor.substring(1), radix: 16) + 0xFF000000);
+    final color = Color(
+      int.parse(hexColor.substring(1), radix: 16) + 0xFF000000,
+    );
 
     return InkWell(
       onTap: () => setState(() => _colorCtrl.text = hexColor),
@@ -653,7 +657,7 @@ class _CreateEditTarjetaNfcScreenState
           ),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.4),
+              color: color.withValues(alpha: 0.4),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -672,7 +676,7 @@ class _CreateEditTarjetaNfcScreenState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF3B82F6).withOpacity(0.3),
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -753,15 +757,18 @@ class _CreateEditTarjetaNfcScreenState
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 12),
-                Text(widget.tarjeta != null
-                    ? 'Tarjeta actualizada correctamente'
-                    : 'Tarjeta registrada correctamente'),
+                Text(
+                  widget.tarjeta != null
+                      ? 'Tarjeta actualizada correctamente'
+                      : 'Tarjeta registrada correctamente',
+                ),
               ],
             ),
             backgroundColor: const Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -779,8 +786,9 @@ class _CreateEditTarjetaNfcScreenState
             ),
             backgroundColor: const Color(0xFFEF4444),
             behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -801,13 +809,15 @@ class _CreateEditTarjetaNfcScreenState
                 Icon(Icons.info_outline, color: Colors.white),
                 SizedBox(width: 12),
                 Expanded(
-                    child: Text('NFC no está disponible en este dispositivo')),
+                  child: Text('NFC no está disponible en este dispositivo'),
+                ),
               ],
             ),
             backgroundColor: const Color(0xFFF59E0B),
             behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
         setState(() => _isReadingNfc = false);
@@ -856,7 +866,8 @@ class _CreateEditTarjetaNfcScreenState
                       backgroundColor: const Color(0xFF10B981),
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   );
                 }
@@ -883,13 +894,18 @@ class _CreateEditTarjetaNfcScreenState
                 children: const [
                   Icon(Icons.error_outline, color: Colors.white),
                   SizedBox(width: 12),
-                  Expanded(child: Text('No se pudo leer el UID de la tarjeta. Intenta de nuevo.')),
+                  Expanded(
+                    child: Text(
+                      'No se pudo leer el UID de la tarjeta. Intenta de nuevo.',
+                    ),
+                  ),
                 ],
               ),
               backgroundColor: const Color(0xFFEF4444),
               behavior: SnackBarBehavior.floating,
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           );
         }
@@ -909,8 +925,9 @@ class _CreateEditTarjetaNfcScreenState
           ),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }
@@ -934,16 +951,16 @@ class _CreateEditTarjetaNfcScreenState
 
     // Intento 2: Buscar en tecnologías específicas (orden de más común a menos común)
     const techs = [
-      'nfca',      // Android NFC-A (más común)
-      'mifare',    // MIFARE Classic/Ultralight
-      'iso15693',  // Tarjetas ISO 15693
-      'nfcb',      // NFC-B
-      'nfcf',      // NFC-F (FeliCa)
-      'nfcv',      // NFC-V (ISO 15693)
-      'isoDep',    // ISO-DEP (tarjetas EMV)
-      'ndef',      // NDEF
-      'iso7816',   // ISO 7816
-      'felica',    // FeliCa
+      'nfca', // Android NFC-A (más común)
+      'mifare', // MIFARE Classic/Ultralight
+      'iso15693', // Tarjetas ISO 15693
+      'nfcb', // NFC-B
+      'nfcf', // NFC-F (FeliCa)
+      'nfcv', // NFC-V (ISO 15693)
+      'isoDep', // ISO-DEP (tarjetas EMV)
+      'ndef', // NDEF
+      'iso7816', // ISO 7816
+      'felica', // FeliCa
       'mifareClassic',
       'mifareUltralight',
     ];

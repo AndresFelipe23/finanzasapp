@@ -38,12 +38,18 @@ class LoginRequest {
 
 class AuthResponse {
   final String accessToken;
+  final String? refreshToken;
   final UserResponse user;
 
-  AuthResponse({required this.accessToken, required this.user});
+  AuthResponse({
+    required this.accessToken,
+    this.refreshToken,
+    required this.user,
+  });
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) => AuthResponse(
     accessToken: json['accessToken'],
+    refreshToken: json['refreshToken'],
     user: UserResponse.fromJson(json['user']),
   );
 }

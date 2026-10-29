@@ -1,19 +1,28 @@
-import 'dart:math' as math;
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:persistent_bottom_nav_bar/persistent_bottom_nav_bar.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/home_widget/home_widget_sync.dart';
 import '../../core/models/auth_models.dart';
-import '../../core/theme/glass.dart';
-import '../../core/theme/neo_bank_theme.dart';
+import '../../core/notifications/notification_service.dart';
+import '../../core/notifications/quick_record.dart';
+import '../../core/quick_launch/quick_launch.dart';
+import '../../core/session/current_user.dart';
+import '../../core/theme/brand.dart';
 import '../../features/home/home_screen.dart';
+import '../../features/home/new_transaction_sheet.dart';
+import '../../features/transactions/create_transaction_screen.dart';
+import '../../features/transactions/create_transfer_screen.dart';
+import '../../features/accounts/accounts_provider.dart';
+import '../../features/transactions/transaction_detail_sheet.dart';
+import '../../features/transactions/transactions_provider.dart';
+import '../../features/transactions/transactions_service.dart';
 import '../../features/transactions/transactions_screen.dart';
 import '../../features/categories/categories_screen.dart';
 import '../../features/accounts/accounts_screen.dart';
 import '../../features/metas/metas_screen.dart';
 import '../../features/prestamos/prestamos_screen.dart';
 import '../../features/presupuestos/presupuestos_screen.dart';
+import '../../features/recurring/recurring_screen.dart';
+import '../../features/export/export_sheet.dart';
 // Imports NFC deshabilitados (comentados pero no eliminados para futura reactivación)
 // import '../../features/tarjetas_nfc/tarjetas_nfc_screen.dart';
 // import '../../features/pagos_nfc/pagar_con_nfc_screen.dart';
@@ -22,514 +31,339 @@ import '../../features/profile/profile_screen.dart';
 import '../../features/auth/auth_service.dart';
 import '../../core/api/api_client.dart';
 import '../../features/auth/login_screen.dart';
-// Import deshabilitado (comentado pero no eliminado para futura reactivación)
-// import '../../features/add_transaction/add_transaction_screen.dart';
 
-class MainNavigation extends StatefulWidget {
+class MainNavigation extends ConsumerStatefulWidget {
   final UserResponse user;
 
   const MainNavigation({super.key, required this.user});
 
   @override
-  State<MainNavigation> createState() => _MainNavigationState();
+  ConsumerState<MainNavigation> createState() => _MainNavigationState();
 }
 
-class _MainNavigationState extends State<MainNavigation> {
-  late PersistentTabController _controller;
+class _MainNavigationState extends ConsumerState<MainNavigation> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  // Pestañas: 0 Inicio · 1 Movimientos · 2 Metas · 3 Perfil (el + no es pestaña)
+  int _index = 0;
 
   @override
   void initState() {
     super.initState();
-    // Inicializar siempre con índice 0 para evitar problemas con índices fuera de rango
-    _controller = PersistentTabController(initialIndex: 0);
+    // Programa recordatorios y revisa presupuestos al entrar
+    NotificationService.instance.syncFromServer(ApiClient());
+    NotificationService.instance.showQuickRecord();
+    // Gastos del registro rápido que quedaron guardados sin conexión
+    QuickRecord.enviarPendientes();
+    // El perfil de esta sesión (moneda base de los totales, nombre)
+    Future.microtask(() {
+      if (!mounted) return;
+      final actual = ref.read(currentUserProvider);
+      if (actual?.id != widget.user.id) {
+        ref.read(currentUserProvider.notifier).state = widget.user;
+      }
+    });
+    // Pedidos del ícono, el widget o una notificación (incluido el que abrió
+    // la app, que llegó antes de iniciar sesión)
+    QuickLaunch.pending.addListener(_openPending);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openPending());
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    QuickLaunch.pending.removeListener(_openPending);
     super.dispose();
   }
 
+  void _openPending() {
+    if (!mounted || QuickLaunch.pending.value == null) return;
+    final r = QuickLaunch.take()!;
+    if (r.destino == QuickRequest.movimiento) {
+      _abrirMovimiento(r.id);
+      return;
+    }
+    final Widget screen = switch (r.destino) {
+      QuickRequest.ingreso => CreateTransactionScreen(
+        tipoTransaccion: 'INGRESO',
+        montoInicial: r.monto,
+        notaInicial: r.nota,
+      ),
+      QuickRequest.transferencia => const CreateTransferScreen(),
+      QuickRequest.recurrentes => const RecurringScreen(),
+      QuickRequest.presupuestos => const PresupuestosScreen(),
+      _ => CreateTransactionScreen(
+        tipoTransaccion: 'GASTO',
+        montoInicial: r.monto,
+        notaInicial: r.nota,
+      ),
+    };
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
+
+  /// Detalle de un movimiento creado fuera de la app (compra registrada
+  /// automáticamente): se recarga la lista porque es nuevo.
+  Future<void> _abrirMovimiento(int? id) async {
+    if (id == null) return;
+    final notifier = ref.read(transactionsNotifierProvider.notifier);
+    await notifier.refresh();
+    ref.read(accountsNotifierProvider.notifier).refresh();
+    var t = ref.read(transactionsNotifierProvider).valueOrNull
+        ?.where((x) => x.id == id)
+        .firstOrNull;
+    if (t == null) {
+      try {
+        t = await TransactionsService(ApiClient()).getTransactionById(id);
+      } catch (_) {
+        return; // Ya no existe (p. ej. se borró)
+      }
+    }
+    if (!mounted) return;
+    showTransactionDetail(context, t);
+  }
+
+  void _goTo(int index) => setState(() => _index = index);
+
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
-    final screens = _buildScreens();
-    final items = _navBarItems(t);
-
-    // Asegurar que el índice del controller no exceda el número de pantallas
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _controller.index >= screens.length) {
-        _controller.index = 0;
-      }
+    // El widget de la pantalla de inicio refleja los movimientos cargados
+    ref.listen(transactionsNotifierProvider, (_, next) {
+      final trans = next.valueOrNull;
+      if (trans != null) HomeWidgetSync.update(trans);
     });
 
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: Colors.transparent,
-      drawer: _buildDrawer(context),
-      body: AppBackground(
-        child: PersistentTabView(
-          context,
-          controller: _controller,
-          screens: screens,
-          items: items,
-          navBarHeight: 64,
-          margin: const EdgeInsets.fromLTRB(14, 0, 14, 0),
-          backgroundColor: Colors.transparent,
-          handleAndroidBackButtonPress: true,
-          resizeToAvoidBottomInset: true,
-          stateManagement: true,
-          hideNavigationBarWhenKeyboardAppears: false,
-          animationSettings: const NavBarAnimationSettings(
-            navBarItemAnimation: ItemAnimationSettings(
-              duration: Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-            ),
-            screenTransitionAnimation: ScreenTransitionAnimationSettings(
-              animateTabTransition: true,
-              duration: Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              screenTransitionAnimationType:
-                  ScreenTransitionAnimationType.fadeIn,
-            ),
-          ),
-          decoration: NavBarDecoration(
-            borderRadius: BorderRadius.circular(22),
-            colorBehindNavBar: Colors.transparent,
-            border: Border.all(color: t.glassStrokeStart),
-            gradient: LinearGradient(
-              colors: [_navBarTint(t), _navBarTint(t)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: t.glassShadow,
-                blurRadius: 24,
-                offset: const Offset(0, -6),
-              ),
-            ],
-          ),
-          // style3 del paquete hace cast erróneo si defines textStyle; style1
-          // aplica textStyle.apply correctamente y evita overflow de altura.
-          navBarStyle: NavBarStyle.style1,
+    return PopScope(
+      // Atrás desde otra pestaña vuelve a Inicio antes de salir de la app
+      canPop: _index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goTo(0);
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: Brand.bg,
+        drawer: _buildDrawer(context),
+        body: IndexedStack(index: _index, children: _buildScreens()),
+        bottomNavigationBar: _BottomBar(
+          index: _index,
+          onSelect: _goTo,
+          onAdd: () => showNewTransactionSheet(context),
         ),
       ),
     );
   }
 
   Widget _buildDrawer(BuildContext context) {
-    final t = context.tokens;
-    final initials = widget.user.nombre
-        .split(' ')
+    final nombre = vigente(ref, widget.user).nombre.trim();
+    final initials = nombre
+        .split(RegExp(r'\s+'))
         .take(2)
         .map((e) => e.isNotEmpty ? e[0].toUpperCase() : '')
         .join();
 
+    // Cierra el menú y abre una pantalla encima de las pestañas
+    void open(Widget screen) {
+      Navigator.pop(context);
+      Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+    }
+
     return Drawer(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Brand.bg,
       elevation: 0,
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(28),
-          bottomRight: Radius.circular(28),
-        ),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(
-            sigmaX: t.blurChrome,
-            sigmaY: t.blurChrome,
-          ),
-          child: ColoredBox(
-            color: t.surface.withValues(alpha: 0.82),
-            child: Column(
-              children: [
-                // ── Header ──────────────────────────────────────────────────
-                Container(
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.paddingOf(context).top + 24,
-                    left: 24,
-                    right: 24,
-                    bottom: 26,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [t.accent, t.transfer],
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Center(
+      width: 304,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Usuario ─────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Material(
+                color: Brand.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  side: const BorderSide(color: Brand.border),
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(22),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _goTo(3);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Brand.ink,
+                            shape: BoxShape.circle,
+                          ),
                           child: Text(
                             initials,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
+                            style: Brand.text(
+                              size: 16,
+                              weight: FontWeight.w800,
                               color: Colors.white,
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.user.nombre,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: -0.4,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                nombre,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Brand.text(weight: FontWeight.w700),
                               ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              widget.user.email,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                color: Colors.white.withValues(alpha: 0.6),
-                                fontWeight: FontWeight.w400,
+                              const SizedBox(height: 2),
+                              Text(
+                                vigente(ref, widget.user).email,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Brand.text(size: 12, color: Brand.muted),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // ── Menú ────────────────────────────────────────────────────
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-                    children: [
-                      _drawerLabel(context, 'Gestión'),
-                      const SizedBox(height: 8),
-                      _drawerItem(
-                        context: context,
-                        icon: Icons.category_outlined,
-                        iconColor: t.transfer,
-                        title: 'Categorías',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const CategoriesScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      _drawerItem(
-                        context: context,
-                        icon: Icons.pie_chart_outline_rounded,
-                        iconColor: const Color(0xFF3B82F6),
-                        title: 'Presupuestos',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const PresupuestosScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      _drawerItem(
-                        context: context,
-                        icon: Icons.request_page_outlined,
-                        iconColor: const Color(0xFF06B6D4),
-                        title: 'Préstamos',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const PrestamosScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      _drawerLabel(context, 'Cuenta'),
-                      const SizedBox(height: 8),
-                      _drawerItem(
-                        context: context,
-                        icon: Icons.person_outline_rounded,
-                        iconColor: t.accent,
-                        title: 'Mi Perfil',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ProfileScreen(user: widget.user),
-                            ),
-                          );
-                        },
-                      ),
-                      // ── NFC deshabilitado (comentado para futura reactivación) ──
-                      /*
-                  _drawerItem(
-                    context: context,
-                    icon: Icons.credit_card,
-                    iconColor: const Color(0xFF0EA5E9),
-                    title: 'Tarjetas NFC',
-                    onTap: () { ... },
-                  ),
-                  _drawerItem(
-                    context: context,
-                    icon: Icons.nfc,
-                    iconColor: const Color(0xFF22C55E),
-                    title: 'Pagar con NFC',
-                    onTap: () { ... },
-                  ),
-                  */
-                    ],
-                  ),
-                ),
-
-                // ── Logout ──────────────────────────────────────────────────
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border(top: BorderSide(color: t.divider, width: 1)),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => _showLogoutDialog(context),
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: 24,
-                          right: 24,
-                          top: 18,
-                          bottom: 18 + MediaQuery.paddingOf(context).bottom,
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                          color: Brand.muted,
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: t.danger.withValues(
-                                  alpha: t.isDark ? 0.16 : 0.08,
-                                ),
-                                borderRadius: BorderRadius.circular(11),
-                              ),
-                              child: Icon(
-                                Icons.logout_rounded,
-                                color: t.danger,
-                                size: 18,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Text(
-                              'Cerrar sesión',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: t.danger,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _drawerLabel(BuildContext context, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 2),
-      child: Text(
-        text.toUpperCase(),
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: context.tokens.textSecondary.withValues(alpha: 0.6),
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-
-  Widget _drawerItem({
-    required BuildContext context,
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    final t = context.tokens;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        splashColor: iconColor.withValues(alpha: 0.06),
-        highlightColor: iconColor.withValues(alpha: 0.04),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: t.isDark ? 0.18 : 0.1),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Icon(icon, color: iconColor, size: 18),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  title,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: t.textPrimary,
-                  ),
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: t.textSecondary.withValues(alpha: 0.4),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showLogoutDialog(BuildContext context) {
-    final t = context.tokens;
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: GlassContainer(
-          strong: true,
-          blurSigma: t.blurChrome,
-          borderRadius: BorderRadius.circular(t.radiusLg),
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: t.danger.withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.logout_rounded, size: 30, color: t.danger),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                '¿Cerrar sesión?',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: t.textPrimary,
-                  letterSpacing: -0.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Deberás iniciar sesión nuevamente para acceder a tu cuenta.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  color: t.textSecondary,
-                  height: 1.55,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              Row(
+            // ── Menú ────────────────────────────────────────────────────
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        side: BorderSide(color: t.border, width: 1.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                  _DrawerSection(
+                    title: 'Mis finanzas',
+                    items: [
+                      _DrawerItem(
+                        icon: Icons.account_balance_wallet_outlined,
+                        label: 'Cuentas',
+                        onTap: () => open(const AccountsScreen()),
                       ),
-                      child: Text(
-                        'Cancelar',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: t.textSecondary,
-                        ),
+                      _DrawerItem(
+                        icon: Icons.pie_chart_outline_rounded,
+                        label: 'Presupuestos',
+                        onTap: () => open(const PresupuestosScreen()),
                       ),
-                    ),
+                      _DrawerItem(
+                        icon: Icons.swap_horiz_rounded,
+                        label: 'Préstamos',
+                        onTap: () => open(const PrestamosScreen()),
+                      ),
+                      _DrawerItem(
+                        icon: Icons.autorenew_rounded,
+                        label: 'Pagos recurrentes',
+                        onTap: () => open(const RecurringScreen()),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        await _logout(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: t.danger,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                  const SizedBox(height: 16),
+                  _DrawerSection(
+                    title: 'Organizar',
+                    items: [
+                      _DrawerItem(
+                        icon: Icons.grid_view_rounded,
+                        label: 'Categorías',
+                        onTap: () => open(const CategoriesScreen()),
                       ),
-                      child: Text(
-                        'Cerrar sesión',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      _DrawerItem(
+                        icon: Icons.file_download_outlined,
+                        label: 'Exportar movimientos',
+                        onTap: () {
+                          Navigator.pop(context);
+                          showExportSheet(context);
+                        },
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+
+            // ── Cerrar sesión ───────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: SizedBox(
+                height: 50,
+                child: OutlinedButton.icon(
+                  onPressed: () => _confirmLogout(context),
+                  icon: const Icon(Icons.logout_rounded, size: 20),
+                  label: Text(
+                    'Cerrar sesión',
+                    style: Brand.text(
+                      weight: FontWeight.w700,
+                      color: Brand.expense,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Brand.expense,
+                    backgroundColor: Brand.surface,
+                    side: const BorderSide(color: Brand.border),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Future<void> _logout(BuildContext context) async {
-    final authService = AuthService(ApiClient());
-    await authService.logout();
+  Future<void> _confirmLogout(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Brand.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(
+          '¿Cerrar sesión?',
+          style: Brand.text(size: 18, weight: FontWeight.w800),
+        ),
+        content: Text(
+          'Tendrás que iniciar sesión con tu contraseña la próxima vez.',
+          style: Brand.text(size: 14, color: Brand.muted, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancelar',
+              style: Brand.text(weight: FontWeight.w700, color: Brand.muted),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Brand.expense),
+            child: Text(
+              'Cerrar sesión',
+              style: Brand.text(weight: FontWeight.w700, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await AuthService(ApiClient()).logout();
     if (context.mounted) {
       Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -541,68 +375,205 @@ class _MainNavigationState extends State<MainNavigation> {
   List<Widget> _buildScreens() {
     return [
       HomeScreen(
-        user: widget.user,
+        user: vigente(ref, widget.user),
         openDrawer: () => _scaffoldKey.currentState?.openDrawer(),
+        openProfile: () => _goTo(3),
+        openMovements: () => _goTo(1),
       ),
       const TransactionsScreen(),
-      const AccountsScreen(),
       const MetasScreen(),
+      ProfileScreen(user: widget.user),
     ];
   }
+}
 
-  // El paquete pinta el gradiente una vez bajo el BackdropFilter y otra encima,
-  // así que se compone dos veces: se invierte para llegar a t.glassFill.
-  Color _navBarTint(AppTokens t) =>
-      Colors.white.withValues(alpha: 1 - math.sqrt(1 - t.glassFill.a));
+/// Barra inferior del diseño: 4 pestañas y un botón + elevado al centro.
+class _BottomBar extends StatelessWidget {
+  const _BottomBar({
+    required this.index,
+    required this.onSelect,
+    required this.onAdd,
+  });
 
-  List<PersistentBottomNavBarItem> _navBarItems(AppTokens t) {
-    const iconActive = 26.0;
-    const iconInactive = 24.0;
+  final int index;
+  final ValueChanged<int> onSelect;
+  final VoidCallback onAdd;
 
-    PersistentBottomNavBarItem tab({
-      required String title,
-      required IconData iconOn,
-      required IconData iconOff,
-    }) {
-      return PersistentBottomNavBarItem(
-        title: title,
-        iconSize: iconActive,
-        contentPadding: 4,
-        icon: Icon(iconOn, size: iconActive),
-        inactiveIcon: Icon(iconOff, size: iconInactive),
-        activeColorPrimary: t.accent,
-        activeColorSecondary: t.accent,
-        inactiveColorPrimary: t.textSecondary,
-        filter: ui.ImageFilter.blur(sigmaX: t.blurChrome, sigmaY: t.blurChrome),
-        textStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.15,
+  @override
+  Widget build(BuildContext context) {
+    Widget tab(int i, IconData on, IconData off, String label) {
+      final selected = index == i;
+      final color = selected ? Brand.accent : Brand.muted;
+      return Expanded(
+        child: Semantics(
+          selected: selected,
+          button: true,
+          label: label,
+          excludeSemantics: true,
+          child: InkResponse(
+            onTap: () => onSelect(i),
+            radius: 32,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(selected ? on : off, size: 24, color: color),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Brand.text(
+                    size: 11,
+                    weight: selected ? FontWeight.w700 : FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
 
-    return [
-      tab(
-        title: 'Inicio',
-        iconOn: Icons.home_rounded,
-        iconOff: Icons.home_outlined,
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: Brand.surface,
+        border: Border(top: BorderSide(color: Brand.border)),
       ),
-      tab(
-        title: 'Movimientos',
-        iconOn: Icons.receipt_long_rounded,
-        iconOff: Icons.receipt_long_outlined,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 68,
+          child: Row(
+            children: [
+              tab(0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
+              tab(1, Icons.receipt_long_rounded, Icons.receipt_long_outlined,
+                  'Movimientos'),
+              Expanded(
+                child: Center(
+                  child: Transform.translate(
+                    offset: const Offset(0, -14),
+                    child: Semantics(
+                      button: true,
+                      label: 'Nuevo movimiento',
+                      excludeSemantics: true,
+                      child: Material(
+                        color: Brand.accent,
+                        shape: const CircleBorder(),
+                        elevation: 3,
+                        shadowColor: Brand.accent.withValues(alpha: 0.4),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: onAdd,
+                          child: const SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: Icon(Icons.add_rounded,
+                                color: Colors.white, size: 28),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              tab(2, Icons.track_changes_rounded, Icons.track_changes_outlined,
+                  'Metas'),
+              tab(3, Icons.person_rounded, Icons.person_outline_rounded,
+                  'Perfil'),
+            ],
+          ),
+        ),
       ),
-      tab(
-        title: 'Cuentas',
-        iconOn: Icons.account_balance_wallet,
-        iconOff: Icons.account_balance_wallet_outlined,
+    );
+  }
+}
+
+// ─── Menú lateral ─────────────────────────────────────────────────────────────
+class _DrawerSection extends StatelessWidget {
+  const _DrawerSection({required this.title, required this.items});
+
+  final String title;
+  final List<Widget> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            title.toUpperCase(),
+            style: Brand.text(
+              size: 11,
+              weight: FontWeight.w700,
+              color: Brand.muted,
+              letterSpacing: 1.1,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          decoration: BoxDecoration(
+            color: Brand.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Brand.border),
+          ),
+          child: Column(
+            children: [
+              for (final (i, item) in items.indexed) ...[
+                if (i > 0) const Divider(height: 1, color: Brand.border),
+                item,
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DrawerItem extends StatelessWidget {
+  const _DrawerItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 54),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Brand.bg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 18, color: Brand.ink),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label, style: Brand.text(weight: FontWeight.w600)),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: Brand.muted,
+            ),
+          ],
+        ),
       ),
-      tab(
-        title: 'Metas',
-        iconOn: Icons.flag_rounded,
-        iconOff: Icons.flag_outlined,
-      ),
-    ];
+    );
   }
 }

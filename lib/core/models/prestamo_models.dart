@@ -102,6 +102,8 @@ class CreatePrestamoRequest {
   final DateTime? fechaFin;
   final int? cuentaId;
   final String? notas;
+  // Solo al crear: con cuentaId, genera el ingreso (DEUDA) o gasto (PRESTAMO)
+  final bool? registrarMovimiento;
 
   CreatePrestamoRequest({
     required this.nombre,
@@ -112,6 +114,7 @@ class CreatePrestamoRequest {
     this.fechaFin,
     this.cuentaId,
     this.notas,
+    this.registrarMovimiento,
   });
 
   Map<String, dynamic> toJson() {
@@ -127,6 +130,7 @@ class CreatePrestamoRequest {
       if (fechaFin != null) 'fechaFin': fmt(fechaFin),
       if (cuentaId != null) 'cuentaId': cuentaId,
       if (notas != null && notas!.isNotEmpty) 'notas': notas,
+      if (registrarMovimiento != null) 'registrarMovimiento': registrarMovimiento,
     };
   }
 }

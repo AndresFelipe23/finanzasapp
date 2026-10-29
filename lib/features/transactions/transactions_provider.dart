@@ -25,7 +25,7 @@ class TransactionsNotifier
   final TransactionsService _service;
 
   Future<void> _loadTransactions() async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<List<Transaccion>>().copyWithPrevious(state);
     try {
       final transactions = await _service.getAllTransactions();
       state = AsyncValue.data(transactions);

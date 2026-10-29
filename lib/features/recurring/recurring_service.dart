@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 import '../../core/api/api_client.dart';
+import '../../core/models/pago_recurrente_models.dart';
+import '../../core/models/transaccion_models.dart';
 
 class CreatePagoRecurrenteRequest {
   final int categoriaId;
@@ -45,13 +47,69 @@ class RecurringService {
   final ApiClient apiClient;
   RecurringService(this.apiClient);
 
-  Future<void> createRule(CreatePagoRecurrenteRequest req) async {
+  String _msg(DioException e) {
+    final data = e.response?.data;
+    return '${(data is Map ? data['message'] : null) ?? e.message}';
+  }
+
+  /// Devuelve el id del pago creado (null si el servidor no lo informa).
+  Future<int?> createRule(CreatePagoRecurrenteRequest req) async {
     try {
-      await apiClient.dio.post('/api/pagos-recurrentes', data: req.toJson());
+      final res = await apiClient.dio.post('/api/pagos-recurrentes', data: req.toJson());
+      final data = res.data;
+      return data is Map ? int.tryParse('${data['id']}') : null;
     } on DioException catch (e) {
-      throw Exception(
-        'Error al crear pago recurrente: ${e.response?.data['message'] ?? e.message}',
+      throw Exception('Error al crear pago recurrente: ${_msg(e)}');
+    }
+  }
+
+  Future<List<PagoRecurrente>> getAll() async {
+    try {
+      final res = await apiClient.dio.get('/api/pagos-recurrentes');
+      return (res.data as List)
+          .map((j) => PagoRecurrente.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw Exception('Error al obtener pagos recurrentes: ${_msg(e)}');
+    }
+  }
+
+  Future<void> update(int id, Map<String, dynamic> body) async {
+    try {
+      await apiClient.dio.patch('/api/pagos-recurrentes/$id', data: body);
+    } on DioException catch (e) {
+      throw Exception('Error al actualizar pago recurrente: ${_msg(e)}');
+    }
+  }
+
+  Future<void> toggle(int id, bool activo) async {
+    try {
+      await apiClient.dio.patch(
+        '/api/pagos-recurrentes/$id/toggle',
+        queryParameters: {'activo': '$activo'},
       );
+    } on DioException catch (e) {
+      throw Exception('Error al cambiar estado: ${_msg(e)}');
+    }
+  }
+
+  Future<void> executeNow(int id) async {
+    try {
+      // Fecha y hora del teléfono (sin ella el servidor usa la de Colombia)
+      await apiClient.dio.post(
+        '/api/pagos-recurrentes/$id/ejecutar',
+        data: {'fecha': formatApiDateTime(DateTime.now())},
+      );
+    } on DioException catch (e) {
+      throw Exception('Error al registrar el pago: ${_msg(e)}');
+    }
+  }
+
+  Future<void> delete(int id) async {
+    try {
+      await apiClient.dio.delete('/api/pagos-recurrentes/$id');
+    } on DioException catch (e) {
+      throw Exception('Error al eliminar pago recurrente: ${_msg(e)}');
     }
   }
 }

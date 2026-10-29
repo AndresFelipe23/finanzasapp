@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo de la marca: la F en menta con el punto durazno (igual a BrandMark
+     en Flutter). Lienzo de 108dp; todo cabe en los 66dp centrales. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Trazo vertical -->
+    <path
+        android:fillColor="#7FD1AE"
+        android:pathData="M38,31h4a4,4 0,0 1,4 4v38a4,4 0,0 1,-4 4h-4a4,4 0,0 1,-4 -4v-38a4,4 0,0 1,4 -4z" />
+    <!-- Brazo superior -->
+    <path
+        android:fillColor="#7FD1AE"
+        android:pathData="M38,31h26a4,4 0,0 1,4 4v4a4,4 0,0 1,-4 4h-26a4,4 0,0 1,-4 -4v-4a4,4 0,0 1,4 -4z" />
+    <!-- Brazo del medio -->
+    <path
+        android:fillColor="#7FD1AE"
+        android:pathData="M38,50h16a4,4 0,0 1,4 4v3a4,4 0,0 1,-4 4h-16a4,4 0,0 1,-4 -4v-3a4,4 0,0 1,4 -4z" />
+    <!-- Punto durazno -->
+    <path
+        android:fillColor="#F0A673"
+        android:pathData="M61.5,71a6.5,6.5 0,1 0,13 0a6.5,6.5 0,1 0,-13 0z" />
+</vector>
