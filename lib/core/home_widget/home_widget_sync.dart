@@ -37,8 +37,8 @@ class HomeWidgetSync {
     for (final t in trans) {
       final f = t.fechaTransaccion;
       if (f.year != now.year || f.month != now.month) continue;
-      if (t.tipoNombre == 'GASTO') gastos += enBase(t);
-      if (t.tipoNombre == 'INGRESO') ingresos += enBase(t);
+      if (t.esGasto) gastos += enBase(t);
+      if (t.esIngreso) ingresos += enBase(t);
     }
     await _save({
       'mes': _meses[now.month - 1],

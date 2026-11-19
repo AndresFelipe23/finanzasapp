@@ -11,8 +11,10 @@ import '../../features/home/home_screen.dart';
 import '../../features/home/new_transaction_sheet.dart';
 import '../../features/transactions/create_transaction_screen.dart';
 import '../../features/transactions/create_transfer_screen.dart';
+import '../../features/accounts/account_transactions_screen.dart';
 import '../../features/accounts/accounts_provider.dart';
 import '../../features/transactions/transaction_detail_sheet.dart';
+import '../../features/presupuestos/presupuestos_provider.dart';
 import '../../features/transactions/transactions_provider.dart';
 import '../../features/transactions/transactions_service.dart';
 import '../../features/transactions/transactions_screen.dart';
@@ -23,10 +25,6 @@ import '../../features/prestamos/prestamos_screen.dart';
 import '../../features/presupuestos/presupuestos_screen.dart';
 import '../../features/recurring/recurring_screen.dart';
 import '../../features/export/export_sheet.dart';
-// Imports NFC deshabilitados (comentados pero no eliminados para futura reactivación)
-// import '../../features/tarjetas_nfc/tarjetas_nfc_screen.dart';
-// import '../../features/pagos_nfc/pagar_con_nfc_screen.dart';
-// import '../../features/pagos_nfc/pagos_nfc_history2.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/auth/auth_service.dart';
 import '../../core/api/api_client.dart';
@@ -81,6 +79,24 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
       _abrirMovimiento(r.id);
       return;
     }
+    if (r.destino == QuickRequest.movimientos) {
+      _goTo(1);
+      return;
+    }
+    if (r.destino == QuickRequest.cuenta) {
+      // Recordatorio de pago de tarjeta: abre esa tarjeta
+      final c = ref
+          .read(accountsNotifierProvider)
+          .valueOrNull
+          ?.where((x) => x.id == r.id)
+          .firstOrNull;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => c != null ? AccountTransactionsScreen(cuenta: c) : const AccountsScreen(),
+        ),
+      );
+      return;
+    }
     final Widget screen = switch (r.destino) {
       QuickRequest.ingreso => CreateTransactionScreen(
         tipoTransaccion: 'INGRESO',
@@ -90,6 +106,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
       QuickRequest.transferencia => const CreateTransferScreen(),
       QuickRequest.recurrentes => const RecurringScreen(),
       QuickRequest.presupuestos => const PresupuestosScreen(),
+      QuickRequest.prestamos => const PrestamosScreen(),
       _ => CreateTransactionScreen(
         tipoTransaccion: 'GASTO',
         montoInicial: r.monto,
@@ -127,7 +144,15 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     // El widget de la pantalla de inicio refleja los movimientos cargados
     ref.listen(transactionsNotifierProvider, (_, next) {
       final trans = next.valueOrNull;
-      if (trans != null) HomeWidgetSync.update(trans);
+      if (trans != null) {
+        HomeWidgetSync.update(trans);
+        // El resumen del domingo se recalcula con lo último registrado
+        NotificationService.instance.programarResumenSemanal(
+          trans: trans,
+          presupuestos: ref.read(presupuestosNotifierProvider).valueOrNull,
+          api: ApiClient(),
+        );
+      }
     });
 
     return PopScope(

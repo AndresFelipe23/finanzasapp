@@ -60,9 +60,9 @@ class AppConfig {
 
   // URLs de documentación y soporte
   static const String privacyPolicyUrl =
-      'https://afesdev.github.io/financially/privacy-policy';
+      'https://finanzas-api-nine-weld.vercel.app/privacidad';
   static const String termsOfServiceUrl =
-      'https://afesdev.github.io/financially/terms-of-service';
+      'https://finanzas-api-nine-weld.vercel.app/terminos';
   static const String supportEmail = developerEmail;
 
   // Verificar si estamos en modo producción

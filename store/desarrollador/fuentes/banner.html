@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@500&display=block" rel="stylesheet">
+<!--
+  Banner de la página de desarrollador afesdev. Se diseña a 2048 × 1152 y se
+  genera a escala 2 (4096 × 2304). Play recorta los bordes según el
+  dispositivo: la marca y el lema van en el centro; a los lados, solo adornos.
+-->
+<style>
+  :root{--noche:#101828;--azul:#1B2440;--coral:#FF6B4A;--texto:#E8ECF5;--suave:#9AA6C2}
+  html,body{margin:0;width:2048px;height:1152px;overflow:hidden;font-family:Manrope,system-ui,sans-serif}
+  .lienzo{position:relative;width:2048px;height:1152px;overflow:hidden;color:#fff;
+    background:
+      radial-gradient(700px 500px at 50% 45%, rgba(255,107,74,.16), transparent 70%),
+      radial-gradient(900px 700px at 100% 0%, #24305A 0%, transparent 60%),
+      radial-gradient(800px 600px at 0% 100%, #1E2A4E 0%, transparent 60%), var(--noche)}
+  /* Cuadrícula sutil de fondo */
+  .rejilla{position:absolute;inset:0;opacity:.07;
+    background-image:linear-gradient(#fff 1px, transparent 1px),linear-gradient(90deg,#fff 1px, transparent 1px);
+    background-size:64px 64px;mask-image:radial-gradient(900px 600px at 50% 50%, #000 30%, transparent 75%)}
+
+  /* Centro: marca y lema */
+  .centro{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:1100px}
+  .marca{display:inline-flex;align-items:center;gap:28px}
+  .logo{width:132px;height:132px;border-radius:34px;background:#0B1120;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 20px 50px rgba(0,0,0,.35), inset 0 0 0 2px rgba(255,255,255,.06)}
+  .logo b{font-size:66px;font-weight:800;letter-spacing:-4px;line-height:1;transform:translate(2px,-3px)}
+  .logo i{display:inline-block;width:13px;height:13px;border-radius:50%;background:var(--coral);margin-left:3px}
+  .nombre{font-size:132px;font-weight:800;letter-spacing:-5px;line-height:1}
+  .nombre i{display:inline-block;width:26px;height:26px;border-radius:50%;background:var(--coral);margin-left:6px}
+  h1{margin:40px 0 0;font-size:56px;line-height:1.15;font-weight:700;letter-spacing:-1px;color:var(--texto)}
+  h1 em{font-style:normal;color:var(--coral)}
+  p{margin:18px 0 0;font-size:28px;font-weight:600;color:var(--suave)}
+  .chips{margin-top:34px;display:flex;gap:12px;justify-content:center}
+  .chip{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);border-radius:999px;
+    padding:10px 22px;font-size:22px;font-weight:700;color:var(--texto)}
+
+  /* Izquierda: tarjeta de código (adorno) */
+  .codigo{position:absolute;left:40px;top:250px;width:400px;border-radius:24px;background:rgba(11,17,32,.85);
+    border:1px solid rgba(255,255,255,.08);box-shadow:0 30px 70px rgba(0,0,0,.35);transform:rotate(-5deg);
+    font-family:'JetBrains Mono',monospace;font-size:19px;line-height:1.7;padding:22px 26px 26px}
+  .puntos{display:flex;gap:8px;margin-bottom:14px}
+  .puntos span{width:12px;height:12px;border-radius:50%;background:#3A4566}
+  .k{color:#FF8C70}.f{color:#7FD1AE}.s{color:#F0C674}.c{color:#5C6A8C}
+
+  /* Derecha: teléfono con Financially (adorno) */
+  .tel{position:absolute;right:120px;top:210px;width:300px;height:640px;border-radius:44px;background:#05080F;
+    padding:11px;box-shadow:0 30px 70px rgba(0,0,0,.45);transform:rotate(6deg)}
+  .pantalla{width:100%;height:100%;border-radius:34px;overflow:hidden;background:#F4F5F1}
+  .pantalla img{width:100%;display:block;margin-top:-9.2%}
+  .app{position:absolute;right:370px;top:760px;width:116px;height:116px;border-radius:28px;background:#0B3B2C;
+    box-shadow:0 20px 40px rgba(0,0,0,.35);transform:rotate(-8deg);display:flex;align-items:center;justify-content:center}
+  .app svg{width:84px;height:84px}
+</style></head>
+<body><div class="lienzo">
+  <div class="rejilla"></div>
+
+  <div class="codigo">
+    <div class="puntos"><span></span><span></span><span></span></div>
+    <div><span class="c">// tu idea, hecha app</span></div>
+    <div><span class="k">const</span> idea = <span class="s">"tu negocio"</span>;</div>
+    <div><span class="k">const</span> app = <span class="f">crear</span>(idea, {</div>
+    <div>&nbsp;&nbsp;móvil: <span class="k">true</span>,</div>
+    <div>&nbsp;&nbsp;web: <span class="k">true</span>,</div>
+    <div>&nbsp;&nbsp;simple: <span class="k">true</span>,</div>
+    <div>});</div>
+    <div><span class="f">publicar</span>(app); <span class="c">// ✓</span></div>
+  </div>
+
+  <div class="tel"><div class="pantalla"><img src="../../capturas/1.png" alt=""></div></div>
+  <div class="app"><svg viewBox="0 0 96 96">
+    <rect x="30" y="22" width="13" height="52" rx="4" fill="#7FD1AE"/><rect x="30" y="22" width="38" height="13" rx="4" fill="#7FD1AE"/>
+    <rect x="30" y="43" width="27" height="12" rx="4" fill="#7FD1AE"/><circle cx="68" cy="67" r="7" fill="#F0A673"/></svg></div>
+
+  <div class="centro">
+    <div class="marca">
+      <div class="logo"><svg width="96" height="96" viewBox="0 0 96 96">
+        <rect x="20" y="16" width="15" height="64" rx="7.5" fill="#fff" transform="rotate(20 48 48)"/>
+        <rect x="61" y="16" width="15" height="64" rx="7.5" fill="#fff" transform="rotate(-20 48 48)"/>
+        <circle cx="48" cy="60" r="8" fill="#FF6B4A"/></svg></div>
+      <div class="nombre">afesdev<i></i></div>
+    </div>
+    <h1>Transformo ideas en <em>productos digitales</em></h1>
+    <p>Apps y software a la medida para personas y empresas</p>
+    <div class="chips">
+      <span class="chip">Apps móviles</span>
+      <span class="chip">Aplicaciones web</span>
+      <span class="chip">Software empresarial</span>
+    </div>
+  </div>
+</div></body></html>

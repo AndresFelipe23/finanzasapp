@@ -56,6 +56,7 @@ class BrandFormPage extends StatelessWidget {
     required this.onSubmit,
     this.loading = false,
     this.actions = const [],
+    this.summary,
   });
 
   final String title;
@@ -64,6 +65,9 @@ class BrandFormPage extends StatelessWidget {
   final VoidCallback? onSubmit;
   final bool loading;
   final List<Widget> actions;
+
+  /// Resumen vivo que queda fijo encima del botón principal.
+  final Widget? summary;
 
   @override
   Widget build(BuildContext context) {
@@ -78,15 +82,20 @@ class BrandFormPage extends StatelessWidget {
                 children: [
                   Material(
                     color: Brand.surface,
-                    shape: const CircleBorder(side: BorderSide(color: Brand.border)),
+                    shape: const CircleBorder(
+                      side: BorderSide(color: Brand.border),
+                    ),
                     child: InkWell(
                       customBorder: const CircleBorder(),
                       onTap: () => Navigator.of(context).maybePop(),
                       child: const SizedBox(
                         width: 44,
                         height: 44,
-                        child: Icon(Icons.close_rounded,
-                            color: Brand.ink, semanticLabel: 'Cerrar'),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Brand.ink,
+                          semanticLabel: 'Cerrar',
+                        ),
                       ),
                     ),
                   ),
@@ -111,13 +120,22 @@ class BrandFormPage extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: SizedBox(
-                width: double.infinity,
-                child: BrandButton(
-                  label: submitLabel,
-                  loading: loading,
-                  onPressed: onSubmit,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (summary != null) ...[
+                    summary!,
+                    const SizedBox(height: 10),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: BrandButton(
+                      label: submitLabel,
+                      loading: loading,
+                      onPressed: onSubmit,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -204,6 +222,8 @@ class BrandAmountInput extends StatelessWidget {
     this.label = 'Monto',
     this.color = Brand.ink,
     this.badge,
+    this.helper,
+    this.currency,
     this.autofocus = false,
     this.decimals = false,
   });
@@ -212,6 +232,12 @@ class BrandAmountInput extends StatelessWidget {
   final String label;
   final Color color;
   final String? badge;
+
+  /// Texto de apoyo debajo del monto (p. ej. "sin intereses").
+  final String? helper;
+
+  /// Código de la moneda que se muestra a la derecha del monto.
+  final String? currency;
   final bool autofocus;
   final bool decimals;
 
@@ -221,45 +247,77 @@ class BrandAmountInput extends StatelessWidget {
       children: [
         Text(label, style: Brand.text(size: 13, color: Brand.muted)),
         const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text('\$', style: Brand.text(size: 28, weight: FontWeight.w700, color: color)),
-            const SizedBox(width: 6),
-            IntrinsicWidth(
-              child: TextField(
-                controller: controller,
-                autofocus: autofocus,
-                textAlign: TextAlign.center,
-                keyboardType: TextInputType.numberWithOptions(decimal: decimals),
-                inputFormatters: [
-                  decimals
-                      ? FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))
-                      : FilteringTextInputFormatter.digitsOnly,
-                ],
-                cursorColor: color,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '\$',
                 style: Brand.text(
-                  size: 48,
-                  weight: FontWeight.w800,
+                  size: 28,
+                  weight: FontWeight.w700,
                   color: color,
-                  letterSpacing: -1.4,
                 ),
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  isDense: true,
-                  hintText: '0',
-                  hintStyle: Brand.text(
+              ),
+              const SizedBox(width: 6),
+              IntrinsicWidth(
+                child: TextField(
+                  controller: controller,
+                  autofocus: autofocus,
+                  textAlign: TextAlign.center,
+                  keyboardType: TextInputType.numberWithOptions(
+                    decimal: decimals,
+                  ),
+                  inputFormatters: [
+                    decimals
+                        ? DecimalAmountInputFormatter()
+                        : FilteringTextInputFormatter.digitsOnly,
+                  ],
+                  cursorColor: color,
+                  style: Brand.text(
                     size: 48,
                     weight: FontWeight.w800,
-                    color: Brand.inputBorder,
+                    color: color,
+                    letterSpacing: -1.4,
+                  ),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    hintText: '0',
+                    hintStyle: Brand.text(
+                      size: 48,
+                      weight: FontWeight.w800,
+                      color: Brand.inputBorder,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+              if (currency != null) ...[
+                const SizedBox(width: 8),
+                Text(
+                  currency!,
+                  style: Brand.text(
+                    size: 13,
+                    weight: FontWeight.w700,
+                    color: Brand.muted,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
+        if (helper != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            helper!,
+            textAlign: TextAlign.center,
+            style: Brand.text(size: 12, color: Brand.muted, height: 1.35),
+          ),
+        ],
         if (badge != null) ...[
           const SizedBox(height: 4),
           Container(
@@ -271,7 +329,11 @@ class BrandAmountInput extends StatelessWidget {
             ),
             child: Text(
               badge!,
-              style: Brand.text(size: 12, weight: FontWeight.w600, color: Brand.muted),
+              style: Brand.text(
+                size: 12,
+                weight: FontWeight.w600,
+                color: Brand.muted,
+              ),
             ),
           ),
         ],
@@ -361,7 +423,11 @@ class BrandGroupRow extends StatelessWidget {
               ),
               if (onTap != null) ...[
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right_rounded, size: 18, color: Brand.muted),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: Brand.muted,
+                ),
               ],
             ],
           ),
@@ -450,10 +516,19 @@ class BrandSwitchRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: Brand.text(size: 14, weight: FontWeight.w700)),
+                Text(
+                  title,
+                  style: Brand.text(size: 14, weight: FontWeight.w700),
+                ),
                 if (subtitle != null)
-                  Text(subtitle!,
-                      style: Brand.text(size: 12, color: Brand.muted, height: 1.35)),
+                  Text(
+                    subtitle!,
+                    style: Brand.text(
+                      size: 12,
+                      color: Brand.muted,
+                      height: 1.35,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -470,7 +545,13 @@ class BrandSwitchRow extends StatelessWidget {
 
 /// Opción de una lista de selección.
 class BrandOption<T> {
-  const BrandOption(this.value, this.label, {this.subtitle, this.icon, this.color});
+  const BrandOption(
+    this.value,
+    this.label, {
+    this.subtitle,
+    this.icon,
+    this.color,
+  });
 
   final T value;
   final String label;
@@ -494,7 +575,9 @@ Future<T?> showBrandPicker<T>(
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
     builder: (ctx) => ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.75),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(ctx).height * 0.75,
+      ),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -513,7 +596,10 @@ Future<T?> showBrandPicker<T>(
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-              child: Text(title, style: Brand.text(size: 20, weight: FontWeight.w800)),
+              child: Text(
+                title,
+                style: Brand.text(size: 20, weight: FontWeight.w800),
+              ),
             ),
             Flexible(
               child: ListView(
@@ -532,16 +618,27 @@ Future<T?> showBrandPicker<T>(
                               width: 38,
                               height: 38,
                               decoration: BoxDecoration(
-                                color: (o.color ?? Brand.ink).withValues(alpha: 0.1),
+                                color: (o.color ?? Brand.ink).withValues(
+                                  alpha: 0.1,
+                                ),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Icon(o.icon, size: 18, color: o.color ?? Brand.ink),
+                              child: Icon(
+                                o.icon,
+                                size: 18,
+                                color: o.color ?? Brand.ink,
+                              ),
                             ),
-                      title: Text(o.label, style: Brand.text(weight: FontWeight.w600)),
+                      title: Text(
+                        o.label,
+                        style: Brand.text(weight: FontWeight.w600),
+                      ),
                       subtitle: o.subtitle == null
                           ? null
-                          : Text(o.subtitle!,
-                              style: Brand.text(size: 12, color: Brand.muted)),
+                          : Text(
+                              o.subtitle!,
+                              style: Brand.text(size: 12, color: Brand.muted),
+                            ),
                       trailing: o.value == selected
                           ? const Icon(Icons.check_rounded, color: Brand.accent)
                           : null,
@@ -591,5 +688,64 @@ class BrandTextArea extends StatelessWidget {
 }
 
 /// Lee un monto de un campo (acepta coma o punto como separador decimal).
-double? parseAmount(String text) =>
-    double.tryParse(text.trim().replaceAll(',', '.'));
+double? parseAmount(String text) {
+  final value = text.trim();
+  if (value.isEmpty || !RegExp(r'^\d[\d.,]*$').hasMatch(value)) return null;
+
+  final hasComma = value.contains(',');
+  final hasDot = value.contains('.');
+  if (hasComma && hasDot) {
+    final decimalSeparator = value.lastIndexOf(',') > value.lastIndexOf('.')
+        ? ','
+        : '.';
+    final decimalIndex = value.lastIndexOf(decimalSeparator);
+    final integerPart = value.substring(0, decimalIndex);
+    final fractionPart = value.substring(decimalIndex + 1);
+    final groupingSeparator = decimalSeparator == ',' ? '.' : ',';
+    if (fractionPart.isEmpty || fractionPart.length > 2) return null;
+    final groups = integerPart.split(groupingSeparator);
+    if (!_validDigitGroups(groups)) return null;
+    return double.tryParse('${groups.join()}.$fractionPart');
+  }
+
+  final separator = hasComma
+      ? ','
+      : hasDot
+      ? '.'
+      : null;
+  if (separator == null) return double.tryParse(value);
+
+  final parts = value.split(separator);
+  if (parts.length == 1) return double.tryParse(value);
+  if (parts.length > 2) {
+    return _validDigitGroups(parts) ? double.tryParse(parts.join()) : null;
+  }
+
+  final fractionPart = parts.last;
+  if (fractionPart.length == 3 && _validDigitGroups(parts)) {
+    return double.tryParse(parts.join());
+  }
+  if (fractionPart.length > 2) return null;
+  return double.tryParse(
+    '${parts.first}.${fractionPart.isEmpty ? '0' : fractionPart}',
+  );
+}
+
+bool _validDigitGroups(List<String> groups) =>
+    groups.isNotEmpty &&
+    groups.first.isNotEmpty &&
+    groups.first.length <= 3 &&
+    groups.skip(1).every((group) => group.length == 3);
+
+/// Permite escribir importes agrupados o decimales con coma o punto.
+class DecimalAmountInputFormatter extends TextInputFormatter {
+  static final _allowed = RegExp(r'^[\d.,]*$');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return _allowed.hasMatch(newValue.text) ? newValue : oldValue;
+  }
+}

@@ -22,6 +22,26 @@ class Transaccion {
   final bool activa;
   final DateTime fechaCreacion;
 
+  /// Id de la otra fila si es una transferencia entre cuentas propias (la
+  /// salida se guarda como GASTO y la entrada como INGRESO).
+  final int? transferenciaId;
+
+  /// Id de la meta si es un aporte a una meta: ahorro, no gasto (baja el saldo
+  /// de la cuenta, pero no cuenta en los gastos del mes ni en presupuestos).
+  final int? metaId;
+
+  bool get esTransferencia => transferenciaId != null;
+
+  bool get esAporteMeta => metaId != null;
+
+  /// Gasto real (ni la salida de una transferencia ni un aporte a una meta): lo que suma en los
+  /// totales, gráficas y presupuestos.
+  bool get esGasto =>
+      tipoNombre == 'GASTO' && !esTransferencia && !esAporteMeta;
+
+  /// Ingreso real (no la entrada de una transferencia).
+  bool get esIngreso => tipoNombre == 'INGRESO' && !esTransferencia;
+
   Transaccion({
     required this.id,
     required this.usuarioId,
@@ -45,6 +65,8 @@ class Transaccion {
     required this.repetir,
     required this.activa,
     required this.fechaCreacion,
+    this.transferenciaId,
+    this.metaId,
   });
 
   factory Transaccion.fromJson(Map<String, dynamic> json) {
@@ -158,6 +180,10 @@ class Transaccion {
       repetir: json['repetir'] ?? false,
       activa: json['activa'] ?? true,
       fechaCreacion: parseDateSafe(json['fecha_creacion']),
+      transferenciaId: json['transferencia_id'] == null
+          ? null
+          : int.tryParse('${json['transferencia_id']}'),
+      metaId: json['meta_id'] == null ? null : int.tryParse('${json['meta_id']}'),
     );
   }
 

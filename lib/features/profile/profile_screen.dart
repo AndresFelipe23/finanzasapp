@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../core/utils/abrir_enlace.dart';
+import '../../core/config/app_config.dart';
 import '../../core/api/api_client.dart';
 import '../../core/models/auth_models.dart';
 import '../../core/notifications/notification_service.dart';
@@ -22,6 +24,8 @@ import '../../core/quick_launch/quick_tiles.dart';
 import '../../core/theme/brand_form.dart';
 import '../../core/compras/compra_automatica.dart';
 import 'compras_automaticas_screen.dart';
+import '../presupuestos/presupuestos_provider.dart';
+import '../transactions/transactions_provider.dart';
 
 // USD aparece varias veces (Ecuador, El Salvador, Panamá): una por código
 final _monedas = {
@@ -117,6 +121,100 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (_) => false,
     );
+  }
+
+  /// Elimina la cuenta y todos sus datos (lo exige Google Play). Pide la
+  /// contraseña para confirmar; no se puede deshacer.
+  Future<void> _eliminarCuenta() async {
+    final passCtrl = TextEditingController();
+    String? error;
+    var enviando = false;
+    final eliminada = await showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) {
+          Future<void> confirmar() async {
+            if (passCtrl.text.isEmpty) {
+              setDialog(() => error = 'Escribe tu contraseña para confirmar');
+              return;
+            }
+            setDialog(() {
+              enviando = true;
+              error = null;
+            });
+            try {
+              await _auth.eliminarCuenta(passCtrl.text);
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            } catch (e) {
+              setDialog(() {
+                enviando = false;
+                error = e.toString().replaceFirst('Exception: ', '');
+              });
+            }
+          }
+
+          return AlertDialog(
+            backgroundColor: Brand.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Text('¿Eliminar tu cuenta?',
+                style: Brand.text(size: 18, weight: FontWeight.w800)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Se borran para siempre tu cuenta y todos tus datos: cuentas, '
+                  'movimientos, presupuestos, metas, préstamos y pagos '
+                  'recurrentes. Esta acción no se puede deshacer.',
+                  style: Brand.text(size: 14, color: Brand.muted, height: 1.45),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passCtrl,
+                  obscureText: true,
+                  enabled: !enviando,
+                  autofocus: true,
+                  onSubmitted: (_) => confirmar(),
+                  decoration: InputDecoration(
+                    labelText: 'Tu contraseña',
+                    errorText: error,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: enviando ? null : () => Navigator.pop(ctx, false),
+                child: Text('Cancelar',
+                    style: Brand.text(weight: FontWeight.w700, color: Brand.muted)),
+              ),
+              FilledButton(
+                onPressed: enviando ? null : confirmar,
+                style: FilledButton.styleFrom(backgroundColor: Brand.expense),
+                child: enviando
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text('Eliminar cuenta',
+                        style: Brand.text(weight: FontWeight.w700, color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    passCtrl.dispose();
+    if (eliminada != true || !mounted) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
+    showBrandSnack(context, 'Tu cuenta y todos tus datos fueron eliminados', error: false);
   }
 
   @override
@@ -255,6 +353,48 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         },
                       ),
                     ),
+                  _Row(
+                    icon: Icons.insights_rounded,
+                    label: 'Resumen semanal',
+                    hint: 'Domingos 8:00 p. m.',
+                    trailing: Switch.adaptive(
+                      value: ref.watch(resumenSemanalEnabledProvider),
+                      activeTrackColor: Brand.accent,
+                      onChanged: (v) async {
+                        final ok = await ref
+                            .read(resumenSemanalEnabledProvider.notifier)
+                            .setEnabled(v);
+                        if (!context.mounted) return;
+                        if (!ok) {
+                          showBrandSnack(
+                            context,
+                            'Activa el permiso de notificaciones en los '
+                            'ajustes del teléfono',
+                          );
+                          return;
+                        }
+                        if (!v) return;
+                        // Vista previa con lo que va de la semana, y
+                        // programa el resumen del domingo
+                        final trans = ref.read(transactionsNotifierProvider).valueOrNull ?? const [];
+                        final ppto = ref.read(presupuestosNotifierProvider).valueOrNull;
+                        await NotificationService.instance
+                            .vistaPreviaResumen(trans: trans, presupuestos: ppto);
+                        await NotificationService.instance.programarResumenSemanal(
+                          trans: trans,
+                          presupuestos: ppto,
+                          api: ApiClient(),
+                        );
+                        if (context.mounted) {
+                          showBrandSnack(
+                            context,
+                            'Listo: te llegará los domingos a las 8:00 p. m.',
+                            error: false,
+                          );
+                        }
+                      },
+                    ),
+                  ),
                   if (CompraAutomatica.soportado)
                     _Row(
                       icon: Icons.contactless_outlined,
@@ -282,6 +422,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       builder: (_) => const _SecuritySheet(),
                     ),
                   ),
+                  _Row(
+                    icon: Icons.privacy_tip_outlined,
+                    label: 'Política de privacidad',
+                    onTap: () => abrirEnlace(context, AppConfig.privacyPolicyUrl),
+                  ),
+                  _Row(
+                    icon: Icons.description_outlined,
+                    label: 'Términos y condiciones',
+                    onTap: () => abrirEnlace(context, AppConfig.termsOfServiceUrl),
+                  ),
                 ]),
               ),
             ),
@@ -303,6 +453,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     weight: FontWeight.w700,
                     color: Brand.expense,
                   ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Center(
+              child: TextButton(
+                onPressed: _eliminarCuenta,
+                child: Text(
+                  'Eliminar mi cuenta',
+                  style: Brand.text(size: 13, weight: FontWeight.w600, color: Brand.expense),
                 ),
               ),
             ),

@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/home_widget/home_widget_sync.dart';
+import '../../core/notifications/notification_service.dart';
 import '../../core/security/app_lock.dart';
 import '../../core/theme/brand.dart';
 import '../../core/theme/neo_bank_theme.dart';
@@ -146,7 +147,10 @@ class _QuickEntryHostState extends ConsumerState<_QuickEntryHost> {
     // Lo registrado aquí también se refleja en el widget de inicio
     ref.listen(transactionsNotifierProvider, (_, next) {
       final trans = next.valueOrNull;
-      if (trans != null) HomeWidgetSync.update(trans);
+      if (trans != null) {
+        HomeWidgetSync.update(trans);
+        NotificationService.instance.programarResumenSemanal(trans: trans, api: ApiClient());
+      }
     });
     return Scaffold(
       backgroundColor: Colors.transparent,

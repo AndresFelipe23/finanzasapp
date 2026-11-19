@@ -224,6 +224,15 @@ class QuickRecord {
             : '✓ Gasto de $montoTxt en ${categoria.nombre} · ${cuenta.nombre}',
       );
       await HomeWidgetSync.update([...trans, creada]);
+      // El resumen del domingo incluye lo recién registrado
+      await notif.programarResumenSemanal(trans: [...trans, creada], api: api);
+      // Al momento: si este gasto lleva un presupuesto al 80% o al 100%
+      await notif.revisarPresupuestos(
+        api,
+        causa: 'tu gasto de $montoTxt en ${categoria.nombre}',
+        categoriaId: categoria.id,
+        cuentaId: cuenta.id,
+      );
       // Hay red: registrar lo que haya quedado guardado antes
       if (!desdeCola) await enviarPendientes();
     } catch (e) {

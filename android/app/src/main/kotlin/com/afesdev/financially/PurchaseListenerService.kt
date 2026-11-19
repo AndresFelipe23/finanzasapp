@@ -20,22 +20,36 @@ import io.flutter.plugin.common.MethodChannel
 class PurchaseListenerService : NotificationListenerService() {
 
     companion object {
-        // Apps de mensajería y correo: sus textos pueden traer montos que no
-        // son compras ("te debo $20.000")
+        // Apps de chat y correo: sus textos pueden traer montos que no son
+        // compras ("te debo $20.000")
         private val IGNORADAS = setOf(
             "com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger",
-            "com.google.android.apps.messaging", "com.android.mms",
-            "com.samsung.android.messaging", "com.google.android.gm",
+            "com.google.android.gm",
             "com.microsoft.office.outlook", "com.facebook.orca",
             "com.instagram.android", "com.android.systemui",
         )
+
+        // Apps de SMS: muchos bancos (Bancolombia, Davivienda…) avisan por SMS.
+        // Se aceptan solo los mensajes que nombran un banco o vienen de un
+        // código corto; los de personas se siguen ignorando
+        private val SMS = setOf(
+            "com.google.android.apps.messaging", "com.android.mms",
+            "com.samsung.android.messaging", "com.miui.smsextra",
+        )
+        private val BANCO = Regex(
+            """bancolombia|nequi|davivienda|daviplata|bbva|banco de bogot|banco popular|""" +
+                """av ?villas|banco de occidente|colpatria|scotiabank|ita[uú]|falabella|""" +
+                """lulo|rappipay|nu ?colombia|bancoomeva|banco caja social|movii""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val CODIGO_CORTO = Regex("""^\d{3,6}$""")
 
         // Monto con símbolo o código de moneda: "$85.000", "COP 85,000.00"
         private val MONTO = Regex("""(?:\$|COP|USD|MXN|US\$)\s?\d[\d.,]*""", RegexOption.IGNORE_CASE)
 
         // Verbos de una compra o un pago ya hecho (no de una promoción)
         private val COMPRA = Regex(
-            """compr(a|aste|ó)|pag(aste|o|ó)|transacci[oó]n|aprobad|d[eé]bito|cargo|consumo|purchase|paid""",
+            """compr(a|aste|ó)|pag(aste|o|ó)|transfer(iste|encia)|transacci[oó]n|aprobad|d[eé]bito|cargo|consumo|purchase|paid""",
             RegexOption.IGNORE_CASE,
         )
         // Dinero que entra ("Recibiste $50.000 de…"): Dart decide si se
@@ -62,6 +76,10 @@ class PurchaseListenerService : NotificationListenerService() {
         val texto = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
             ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString().orEmpty()
         val todo = "$titulo $texto"
+        if (sbn.packageName in SMS &&
+            !BANCO.containsMatchIn(todo) &&
+            !CODIGO_CORTO.matches(titulo.filter { !it.isWhitespace() })
+        ) return
 
         val monto = MONTO.find(todo)?.value ?: return
         if (!COMPRA.containsMatchIn(todo) &&

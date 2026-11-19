@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@800&family=JetBrains+Mono:wght@700&display=block" rel="stylesheet">
+<!-- Alternativas del ícono de desarrollador afesdev (512 × 512). Uso:
+     icono-alternativas.html?v=1 … ?v=6 · ?hoja=1 muestra las 6 en círculo -->
+<style>
+  html,body{margin:0;overflow:hidden;font-family:Manrope,system-ui,sans-serif}
+  .i{width:512px;height:512px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .punto{display:inline-block;border-radius:50%;background:#FF6B4A}
+  .hoja{display:grid;grid-template-columns:repeat(3,300px);gap:40px 48px;padding:40px 48px;background:#F4F5F1}
+  .hoja figure{margin:0;text-align:center;font:700 22px Manrope,sans-serif;color:#10201B}
+  .hoja .i{transform:scale(.5859);transform-origin:0 0;border-radius:50%}
+  .hoja .marco{width:300px;height:300px;border-radius:50%;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.15);margin-bottom:14px}
+</style></head>
+<body><div id="raiz"></div>
+<script>
+  const v = {
+    // 1. "af." actual: monograma blanco con punto coral sobre azul noche
+    1: ['af · azul noche', `<div class="i" style="background:radial-gradient(360px 360px at 70% 20%,#2A3350,transparent 70%),#101828">
+         <div style="font-size:230px;font-weight:800;letter-spacing:-12px;color:#fff;line-height:1;transform:translate(6px,-10px)">af<span class="punto" style="width:46px;height:46px;margin-left:10px"></span></div></div>`],
+    // 2. Solo la "a" con el punto: más simple y legible en tamaño pequeño
+    2: ['a · minimal', `<div class="i" style="background:#101828">
+         <div style="font-size:340px;font-weight:800;color:#fff;line-height:1;transform:translate(-14px,-28px)">a<span class="punto" style="width:62px;height:62px;margin-left:10px"></span></div></div>`],
+    // 3. Coral de fondo, monograma azul noche: más cálido y llamativo
+    3: ['af · coral', `<div class="i" style="background:radial-gradient(380px 380px at 25% 15%,#FF8A6E,transparent 70%),#FF6B4A">
+         <div style="font-size:230px;font-weight:800;letter-spacing:-12px;color:#101828;line-height:1;transform:translate(6px,-10px)">af<span class="punto" style="width:46px;height:46px;margin-left:10px;background:#fff"></span></div></div>`],
+    // 4. Código: <af/> para resaltar que eres desarrollador
+    4: ['&lt;af/&gt; · código', `<div class="i" style="background:#101828">
+         <div style="font-family:'JetBrains Mono',monospace;font-size:132px;font-weight:700;color:#fff;letter-spacing:-6px">
+           <span style="color:#FF6B4A">&lt;</span>af<span style="color:#FF6B4A">/&gt;</span></div></div>`],
+    // 5. A geométrica: dos trazos redondeados y el punto, en el estilo del logo de Financially
+    5: ['A · geométrica', `<div class="i" style="background:#101828">
+         <svg width="300" height="300" viewBox="0 0 96 96">
+           <rect x="20" y="16" width="15" height="64" rx="7.5" fill="#fff" transform="rotate(20 48 48)"/>
+           <rect x="61" y="16" width="15" height="64" rx="7.5" fill="#fff" transform="rotate(-20 48 48)"/>
+           <circle cx="48" cy="60" r="8" fill="#FF6B4A"/></svg></div>`],
+    // 6. Degradado coral → violeta con la "a": más moderno, tipo startup
+    6: ['a · degradado', `<div class="i" style="background:linear-gradient(135deg,#FF6B4A 0%,#E0457B 55%,#7B3FE4 100%)">
+         <div style="font-size:340px;font-weight:800;color:#fff;line-height:1;transform:translate(-14px,-28px)">a<span class="punto" style="width:62px;height:62px;margin-left:10px;background:#101828"></span></div></div>`],
+  };
+  const q = new URLSearchParams(location.search);
+  const raiz = document.getElementById('raiz');
+  if (q.get('hoja')) {
+    raiz.innerHTML = `<div class="hoja">${Object.entries(v).map(([n, [t, html]]) =>
+      `<figure><div class="marco">${html}</div>${n}. ${t}</figure>`).join('')}</div>`;
+  } else {
+    raiz.innerHTML = v[q.get('v')][1];
+  }
+</script>
+</body></html>

@@ -1,3 +1,6 @@
+/// Cómo va una meta frente a un ahorro parejo hasta su fecha.
+enum RitmoMeta { adelantada, alDia, atrasada }
+
 class Meta {
   final int id;
   final int usuarioId;
@@ -12,6 +15,11 @@ class Meta {
   final DateTime fechaCreacion;
   final DateTime fechaActualizacion;
 
+  /// Aporte automático: % de cada ingreso que se aparta para esta meta (null
+  /// si no aparta nada) y, opcional, el ingreso mínimo para que aplique.
+  final double? aporteAutoPorcentaje;
+  final double? aporteAutoMinimo;
+
   Meta({
     required this.id,
     required this.usuarioId,
@@ -25,7 +33,57 @@ class Meta {
     required this.activa,
     required this.fechaCreacion,
     required this.fechaActualizacion,
+    this.aporteAutoPorcentaje,
+    this.aporteAutoMinimo,
   });
+
+  bool get tieneAporteAuto => (aporteAutoPorcentaje ?? 0) > 0;
+
+  /// Lo que se apartaría de un ingreso de [ingreso] (0 si no aplica: sin
+  /// regla, meta pausada o cumplida, o ingreso menor al mínimo). Nunca más
+  /// de lo que falta para la meta; lo mismo que hace el servidor.
+  double aporteAutoDe(double ingreso) {
+    if (!tieneAporteAuto || !activa || estaCompletada) return 0;
+    if (ingreso < (aporteAutoMinimo ?? 0)) return 0;
+    final aporte = (ingreso * aporteAutoPorcentaje! / 100 * 100).round() / 100;
+    return aporte > faltante ? faltante : aporte;
+  }
+
+  // ── Ritmo: ¿se va a llegar a tiempo? ────────────────────────────────────
+
+  /// Meses que quedan hasta la fecha objetivo (mínimo 1; 0 si ya venció).
+  int get mesesRestantes {
+    if (estaVencida) return 0;
+    final now = DateTime.now();
+    final meses = (fechaObjetivo.year - now.year) * 12 + fechaObjetivo.month - now.month;
+    return meses < 1 ? 1 : meses;
+  }
+
+  /// Lo que hay que ahorrar cada mes para llegar a tiempo.
+  double get ahorroMensualNecesario =>
+      estaCompletada || estaVencida ? 0 : faltante / mesesRestantes;
+
+  /// Lo que llevaría hoy si ahorrara a ritmo parejo desde que creó la meta.
+  double get ahorroEsperadoHoy {
+    final total = fechaObjetivo.difference(fechaCreacion).inSeconds;
+    if (total <= 0) return montoObjetivo;
+    final pasado = DateTime.now().difference(fechaCreacion).inSeconds.clamp(0, total);
+    return montoObjetivo * pasado / total;
+  }
+
+  /// Positivo: va por delante del ritmo; negativo: por detrás.
+  double get diferenciaRitmo => montoActual - ahorroEsperadoHoy;
+
+  /// Estado del ritmo; null si no aplica (cumplida, vencida o pausada). Hay
+  /// una tolerancia del 3% de la meta para llamarlo "al día".
+  RitmoMeta? get ritmo {
+    if (estaCompletada || estaVencida || !activa) return null;
+    final tolerancia = montoObjetivo * 0.03;
+    final d = diferenciaRitmo;
+    if (d > tolerancia) return RitmoMeta.adelantada;
+    if (d < -tolerancia) return RitmoMeta.atrasada;
+    return RitmoMeta.alDia;
+  }
 
   double get porcentajeCompletado {
     if (montoObjetivo <= 0) return 0;
@@ -110,6 +168,12 @@ class Meta {
       fechaActualizacion: parseDateTimeSafe(
         json['fecha_actualizacion'] ?? json['fechaActualizacion'],
       ),
+      aporteAutoPorcentaje: json['aporte_auto_porcentaje'] == null
+          ? null
+          : parseDoubleSafe(json['aporte_auto_porcentaje']),
+      aporteAutoMinimo: json['aporte_auto_minimo'] == null
+          ? null
+          : parseDoubleSafe(json['aporte_auto_minimo']),
     );
   }
 
@@ -137,6 +201,12 @@ class CreateMetaRequest {
   final String? icono;
   final String? color;
 
+  /// true: se envía la regla de aporte automático (null la desactiva); false:
+  /// no se toca.
+  final bool aporteAuto;
+  final double? aporteAutoPorcentaje;
+  final double? aporteAutoMinimo;
+
   CreateMetaRequest({
     required this.nombre,
     this.descripcion,
@@ -144,6 +214,9 @@ class CreateMetaRequest {
     required this.fechaObjetivo,
     this.icono,
     this.color,
+    this.aporteAuto = false,
+    this.aporteAutoPorcentaje,
+    this.aporteAutoMinimo,
   });
 
   Map<String, dynamic> toJson() {
@@ -158,6 +231,10 @@ class CreateMetaRequest {
       'fechaObjetivo': formatDate(fechaObjetivo),
       if (icono != null && icono!.isNotEmpty) 'icono': icono,
       if (color != null && color!.isNotEmpty) 'color': color,
+      if (aporteAuto) ...{
+        'aporteAutoPorcentaje': aporteAutoPorcentaje,
+        'aporteAutoMinimo': aporteAutoMinimo,
+      },
     };
   }
 }

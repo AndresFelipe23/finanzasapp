@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/app_config.dart';
 
@@ -24,24 +25,24 @@ class ApiClient {
       dio.interceptors.add(
         InterceptorsWrapper(
           onRequest: (options, handler) {
-            print('🌐 [API Request] ${options.method} ${options.baseUrl}${options.path}');
+            debugPrint('🌐 [API Request] ${options.method} ${options.baseUrl}${options.path}');
             if (options.data != null) {
-              print('📤 [Request Data] ${options.data}');
+              debugPrint('📤 [Request Data] ${options.data}');
             }
             handler.next(options);
           },
           onResponse: (response, handler) {
-            print('✅ [API Response] ${response.statusCode} ${response.requestOptions.path}');
+            debugPrint('✅ [API Response] ${response.statusCode} ${response.requestOptions.path}');
             handler.next(response);
           },
           onError: (error, handler) {
-            print('❌ [API Error] ${error.type}');
-            print('   URL: ${error.requestOptions.baseUrl}${error.requestOptions.path}');
+            debugPrint('❌ [API Error] ${error.type}');
+            debugPrint('   URL: ${error.requestOptions.baseUrl}${error.requestOptions.path}');
             if (error.response != null) {
-              print('   Status: ${error.response?.statusCode}');
-              print('   Data: ${error.response?.data}');
+              debugPrint('   Status: ${error.response?.statusCode}');
+              debugPrint('   Data: ${error.response?.data}');
             } else {
-              print('   Message: ${error.message}');
+              debugPrint('   Message: ${error.message}');
             }
             handler.next(error);
           },

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../core/models/meta_models.dart';
 import '../../core/models/presupuesto_models.dart';
 import '../../core/models/transaccion_models.dart';
 import '../../core/theme/brand.dart';
 import '../accounts/accounts_provider.dart';
 import '../categories/category_style.dart';
+import '../metas/aporte_meta_dialog.dart';
+import '../metas/metas_provider.dart';
 import '../presupuestos/presupuestos_provider.dart';
 import 'create_transaction_screen.dart';
 import 'transactions_provider.dart';
@@ -23,6 +26,23 @@ final _money = NumberFormat.currency(
       'GASTO' => (Brand.expense, Brand.expenseSoft, '−', 'Gasto'),
       _ => (Brand.blue, Brand.blueSoft, '', 'Transferencia'),
     };
+
+/// Igual que [movementStyle], pero reconoce las transferencias (guardadas
+/// como un gasto en la cuenta de origen y un ingreso en la de destino).
+(Color fg, Color bg, String sign, String label) estiloMovimiento(Transaccion t) {
+  // Aporte a una meta: ahorro. Baja el saldo de la cuenta pero no es un gasto
+  if (t.esAporteMeta) {
+    return (const Color(0xFF6B3FA0), const Color(0xFFEEE8F5), '−', 'Aporte a meta');
+  }
+  if (!t.esTransferencia) return movementStyle(t.tipoNombre);
+  final sale = t.tipoNombre == 'GASTO';
+  return (
+    Brand.blue,
+    Brand.blueSoft,
+    sale ? '−' : '+',
+    sale ? 'Transferencia enviada' : 'Transferencia recibida',
+  );
+}
 
 /// Abre el detalle de un movimiento (pantalla "Detalle" del diseño).
 void showTransactionDetail(BuildContext context, Transaccion t) {
@@ -61,11 +81,21 @@ class _TransactionDetailScreenState
         backgroundColor: Brand.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(
-          '¿Eliminar este movimiento?',
+          widget.t.esTransferencia
+              ? '¿Eliminar esta transferencia?'
+              : widget.t.esAporteMeta
+              ? '¿Eliminar este aporte?'
+              : '¿Eliminar este movimiento?',
           style: Brand.text(size: 18, weight: FontWeight.w800),
         ),
         content: Text(
-          'El saldo de la cuenta se ajustará. Esta acción no se puede deshacer.',
+          widget.t.esTransferencia
+              ? 'Se eliminan la salida y la entrada, y los saldos de las dos '
+                    'cuentas se ajustan. Esta acción no se puede deshacer.'
+              : widget.t.esAporteMeta
+              ? 'El dinero vuelve a la cuenta y la meta baja ese valor. Esta '
+                    'acción no se puede deshacer.'
+              : 'El saldo de la cuenta se ajustará. Esta acción no se puede deshacer.',
           style: Brand.text(size: 14, color: Brand.muted, height: 1.45),
         ),
         actions: [
@@ -109,9 +139,11 @@ class _TransactionDetailScreenState
   @override
   Widget build(BuildContext context) {
     final t = widget.t;
-    final (fg, bg, sign, label) = movementStyle(t.tipoNombre);
-    final esIngreso = t.tipoNombre == 'INGRESO';
-    final editable = t.tipoNombre == 'GASTO' || esIngreso;
+    final (fg, bg, sign, label) = estiloMovimiento(t);
+    final esIngreso = t.esIngreso;
+    // Una transferencia son dos filas enlazadas y un aporte pertenece a su
+    // meta: ninguno se edita, se eliminan y se vuelven a crear
+    final editable = t.esGasto || esIngreso;
     final title = (t.titulo?.isNotEmpty == true)
         ? t.titulo!
         : (t.categoriaNombre ?? label);
@@ -258,8 +290,9 @@ class _TransactionDetailScreenState
                   ),
 
                   // ── Contexto: presupuesto o ingresos del mes ───────────
-                  if (t.tipoNombre == 'GASTO') _ContextoPresupuesto(t: t),
+                  if (t.esGasto) _ContextoPresupuesto(t: t),
                   if (esIngreso) _ContextoIngresos(t: t),
+                  if (esIngreso) _ApartarParaMetas(t: t),
                 ],
               ),
             ),
@@ -273,7 +306,9 @@ class _TransactionDetailScreenState
                     // Una transferencia son dos movimientos enlazados (salida
                     // y entrada): se corrige eliminándola y creándola de nuevo
                     Text(
-                      'Las transferencias no se editan: elimínala y créala de nuevo.',
+                      t.esAporteMeta
+                          ? 'Los aportes no se editan: elimínalo y vuelve a abonar a la meta.'
+                          : 'Las transferencias no se editan: elimínala y créala de nuevo.',
                       textAlign: TextAlign.center,
                       style: Brand.text(size: 12, color: Brand.muted),
                     ),
@@ -399,6 +434,9 @@ class _ContextCard extends StatelessWidget {
               child: ColoredBox(
                 color: Brand.track,
                 child: Row(
+                  // Los tramos son cajas vacías: sin stretch tendrían 0 px de
+                  // alto y la barra se vería vacía
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // flex 0 rompería el Row: los tramos vacíos no se pintan
                     for (final (flex, c) in [
@@ -472,7 +510,7 @@ class _ContextoIngresos extends ConsumerWidget {
     final f = t.fechaTransaccion;
     final total = trans
         .where((x) =>
-            x.tipoNombre == 'INGRESO' &&
+            x.esIngreso &&
             x.fechaTransaccion.year == f.year &&
             x.fechaTransaccion.month == f.month)
         .fold<double>(0, (s, x) => s + x.monto);
@@ -485,6 +523,80 @@ class _ContextoIngresos extends ConsumerWidget {
       value: _money.format(total),
       bars: [(share, Brand.accent), (1 - share, Brand.mint)],
       caption: 'Este ingreso es el ${(share * 100).round()}% de lo que recibiste este mes.',
+    );
+  }
+}
+
+/// Tarjeta del diseño en el detalle de un ingreso: "Aparta el 10% para tus
+/// metas". Sugiere la meta más próxima a vencer que no aparta sola (las que
+/// tienen aporte automático ya recibieron su parte). Solo para ingresos de
+/// la última semana y mientras haya una meta por cumplir.
+class _ApartarParaMetas extends ConsumerWidget {
+  const _ApartarParaMetas({required this.t});
+
+  final Transaccion t;
+
+  static const _porcentaje = 10;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (DateTime.now().difference(t.fechaTransaccion).inDays > 7) {
+      return const SizedBox.shrink();
+    }
+    final metas = (ref.watch(metasNotifierProvider).valueOrNull ?? const <Meta>[])
+        .where((m) => m.activa && !m.estaCompletada && !m.tieneAporteAuto)
+        .toList()
+      ..sort((a, b) => a.fechaObjetivo.compareTo(b.fechaObjetivo));
+    final meta = metas.firstOrNull;
+    if (meta == null) return const SizedBox.shrink();
+
+    final sugerido = (t.monto * _porcentaje / 100).clamp(0, meta.faltante).toDouble();
+    if (sugerido <= 0) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+      decoration: BoxDecoration(
+        color: Brand.ink,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Aparta el $_porcentaje% para tus metas',
+                  style: Brand.text(size: 14, weight: FontWeight.w700, color: Colors.white),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_money.format(sugerido)} a ${meta.nombre}',
+                  style: Brand.text(size: 12, color: const Color(0xFFB9C6C0)),
+                ),
+              ],
+            ),
+          ),
+          FilledButton(
+            onPressed: () => abrirAporteMeta(
+              context,
+              meta,
+              montoInicial: sugerido,
+              cuentaIdInicial: t.cuentaId,
+              notaInicial: 'Del ingreso ${t.titulo ?? t.categoriaNombre ?? ''}'.trim(),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: Brand.mint,
+              foregroundColor: Brand.deep,
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text('Apartar', style: Brand.text(size: 13, weight: FontWeight.w800, color: Brand.deep)),
+          ),
+        ],
+      ),
     );
   }
 }

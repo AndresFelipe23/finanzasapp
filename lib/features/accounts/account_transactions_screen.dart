@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/cuenta_models.dart';
 import '../../core/theme/brand.dart';
+import '../transactions/create_transfer_screen.dart';
 import '../transactions/transaction_list.dart';
 import '../transactions/transactions_provider.dart';
 import 'account_style.dart';
@@ -93,6 +94,10 @@ class AccountTransactionsScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 18),
+              if (c.esTarjetaCredito) ...[
+                _TarjetaCredito(c: c),
+                const SizedBox(height: 14),
+              ],
               ...transAsync.when(
                 loading: () => [
                   _Summary(saldo: saldo, ingresos: null, gastos: null),
@@ -123,8 +128,8 @@ class AccountTransactionsScreen extends ConsumerWidget {
                   for (final t in propias) {
                     final f = t.fechaTransaccion;
                     if (f.year != now.year || f.month != now.month) continue;
-                    if (t.tipoNombre == 'INGRESO') ingresos += t.monto;
-                    if (t.tipoNombre == 'GASTO') gastos += t.monto;
+                    if (t.esIngreso) ingresos += t.monto;
+                    if (t.esGasto) gastos += t.monto;
                   }
                   final groups = groupTransactionsByDay(propias);
                   return [
@@ -385,6 +390,128 @@ class _Tile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Tarjeta de crédito: deuda, cupo disponible, próximas fechas y el botón
+/// para pagarla (una transferencia desde otra cuenta, que no cuenta como
+/// gasto: los gastos fueron las compras).
+class _TarjetaCredito extends StatelessWidget {
+  const _TarjetaCredito({required this.c});
+
+  final Cuenta c;
+
+  @override
+  Widget build(BuildContext context) {
+    final fecha = DateFormat("d 'de' MMMM", 'es_ES');
+    final pago = c.proximoPago();
+    final corte = c.proximoCorte();
+    final diasPago = pago?.difference(DateUtils.dateOnly(DateTime.now())).inDays;
+    final disponible = c.cupoDisponible;
+    final usado = c.cupo == null || c.cupo == 0 ? null : (c.deuda / c.cupo!).clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      decoration: BoxDecoration(
+        color: Brand.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Brand.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Deuda actual', style: Brand.text(size: 13, color: Brand.muted)),
+          const SizedBox(height: 2),
+          Text(
+            c.deuda > 0 ? _money.format(c.deuda) : 'Al día',
+            style: Brand.title(size: 26, color: c.deuda > 0 ? Brand.expense : Brand.accent),
+          ),
+          if (usado != null) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: usado,
+                minHeight: 8,
+                backgroundColor: Brand.track,
+                color: usado >= 0.9 ? Brand.expense : Brand.blue,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Disponible ${_money.format(disponible! < 0 ? 0 : disponible)} '
+              'de ${_money.format(c.cupo)}',
+              style: Brand.text(size: 12, color: Brand.muted),
+            ),
+          ],
+          if (pago != null || corte != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (corte != null)
+                  Expanded(
+                    child: _Dato(etiqueta: 'Próximo corte', valor: fecha.format(corte)),
+                  ),
+                if (pago != null)
+                  Expanded(
+                    child: _Dato(
+                      etiqueta: 'Pagar antes del',
+                      valor: fecha.format(pago),
+                      alerta: c.deuda > 0 && diasPago != null && diasPago <= 3,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+          if (c.deuda > 0) ...[
+            const SizedBox(height: 14),
+            BrandButton(
+              label: 'Pagar tarjeta',
+              background: Brand.ink,
+              icon: const Icon(Icons.payments_outlined, size: 20),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => CreateTransferScreen.pagarTarjeta(c)),
+              ),
+            ),
+          ],
+          if (pago == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                'Edita la cuenta para poner el cupo y el día de pago: te '
+                'recordamos pagarla a tiempo.',
+                style: Brand.text(size: 12, color: Brand.muted),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Dato extends StatelessWidget {
+  const _Dato({required this.etiqueta, required this.valor, this.alerta = false});
+
+  final String etiqueta;
+  final String valor;
+  final bool alerta;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(etiqueta, style: Brand.text(size: 12, color: Brand.muted)),
+        Text(
+          valor,
+          style: Brand.text(
+            size: 14,
+            weight: FontWeight.w700,
+            color: alerta ? Brand.expense : Brand.ink,
+          ),
+        ),
+      ],
     );
   }
 }

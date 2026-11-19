@@ -117,6 +117,32 @@ class AuthService {
     await NotificationService.instance.hideQuickRecord();
   }
 
+  /// Elimina la cuenta y todos sus datos en el servidor (pide la contraseña
+  /// para confirmar) y luego borra todo lo guardado en el teléfono: sesión,
+  /// preferencias, cola de registro rápido y registro automático.
+  Future<void> eliminarCuenta(String password) async {
+    try {
+      await apiClient.dio.delete('/api/auth/cuenta', data: {'password': password});
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final msg = data is Map ? data['message'] : null;
+      throw Exception(
+        msg is String
+            ? msg
+            : msg is List && msg.isNotEmpty
+            ? '${msg.first}'
+            : 'No se pudo eliminar la cuenta. Revisa tu conexión.',
+      );
+    }
+    try {
+      await apiClient.storage.deleteAll();
+    } catch (_) {
+      // La cuenta ya no existe en el servidor aunque quede algo local
+    }
+    await HomeWidgetSync.clear();
+    await NotificationService.instance.hideQuickRecord();
+  }
+
   // Verificar si hay sesión activa
   Future<bool> isLoggedIn() async {
     return await apiClient.hasToken();

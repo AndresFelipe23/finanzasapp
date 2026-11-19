@@ -56,8 +56,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   List<Transaccion> _apply(List<Transaccion> all) {
     final q = _searchCtrl.text.trim().toLowerCase();
     return all.where((t) {
-      if (_tipo == _Tipo.ingresos && t.tipoNombre != 'INGRESO') return false;
-      if (_tipo == _Tipo.gastos && t.tipoNombre != 'GASTO') return false;
+      // Las transferencias solo salen en "Todos"
+      if (_tipo == _Tipo.ingresos && !t.esIngreso) return false;
+      if (_tipo == _Tipo.gastos && !t.esGasto) return false;
       if (_cuentaId != null && t.cuentaId != _cuentaId) return false;
       if (!_inPeriod(t.fechaTransaccion)) return false;
       if (q.isEmpty) return true;

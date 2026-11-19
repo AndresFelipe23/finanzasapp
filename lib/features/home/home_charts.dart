@@ -52,7 +52,7 @@ class GastoPorCategoriaChart extends ConsumerWidget {
     final porCategoria = <String, double>{};
     final colores = <String, Color?>{};
     for (final t in items) {
-      if (t.tipoNombre != 'GASTO') continue;
+      if (!t.esGasto) continue;
       final f = t.fechaTransaccion;
       if (f.year != now.year || f.month != now.month) continue;
       final nombre = t.categoriaNombre ?? 'Sin categoría';
@@ -222,8 +222,8 @@ class IngresosGastosChart extends ConsumerWidget {
         (m) => m.year == f.year && m.month == f.month,
       );
       if (idx < 0) continue;
-      if (t.tipoNombre == 'INGRESO') ingresos[idx] += tasas.aBase(t.monto, t.moneda);
-      if (t.tipoNombre == 'GASTO') gastos[idx] += tasas.aBase(t.monto, t.moneda);
+      if (t.esIngreso) ingresos[idx] += tasas.aBase(t.monto, t.moneda);
+      if (t.esGasto) gastos[idx] += tasas.aBase(t.monto, t.moneda);
     }
 
     final maxY = [...ingresos, ...gastos].fold<double>(0, (a, b) => a > b ? a : b);

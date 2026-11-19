@@ -43,6 +43,11 @@ function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_options(${TARGET} PRIVATE /EHsc)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
+  # MSVC 14.5x convirtió el aviso de <experimental/coroutine> (usado por
+  # plugins como local_auth_windows) en un error. El propio compilador sugiere
+  # este define para seguir compilándolos.
+  target_compile_definitions(${TARGET} PRIVATE
+    "_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS")
 endfunction()
 
 # Flutter library and tool build rules.

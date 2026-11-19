@@ -309,8 +309,8 @@ class _BalanceCard extends ConsumerWidget {
     );
     double ingresos = 0, gastos = 0;
     for (final t in delMes) {
-      if (t.tipoNombre == 'INGRESO') ingresos += tasas.aBase(t.monto, t.moneda);
-      if (t.tipoNombre == 'GASTO') gastos += tasas.aBase(t.monto, t.moneda);
+      if (t.esIngreso) ingresos += tasas.aBase(t.monto, t.moneda);
+      if (t.esGasto) gastos += tasas.aBase(t.monto, t.moneda);
     }
     final loading = cuentasAsync.isLoading && cuentas.isEmpty;
 
@@ -913,11 +913,17 @@ class _MovementRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (fg, bg, icon, sign) = switch (t.tipoNombre) {
-      'INGRESO' => (Brand.accent, Brand.accentSoft, Icons.south_west_rounded, '+'),
-      'GASTO' => (Brand.expense, Brand.expenseSoft, Icons.north_east_rounded, '−'),
-      _ => (Brand.blue, Brand.blueSoft, Icons.swap_horiz_rounded, ''),
-    };
+    final (fg, bg, icon, sign) = t.esAporteMeta
+        // Aporte a una meta: ahorro (baja el saldo, no es un gasto)
+        ? (const Color(0xFF6B3FA0), const Color(0xFFEEE8F5), Icons.savings_outlined, '−')
+        : t.esTransferencia
+        // Transferencia: azul; el signo dice si salió o entró en esa cuenta
+        ? (Brand.blue, Brand.blueSoft, Icons.swap_horiz_rounded, t.tipoNombre == 'GASTO' ? '−' : '+')
+        : switch (t.tipoNombre) {
+            'INGRESO' => (Brand.accent, Brand.accentSoft, Icons.south_west_rounded, '+'),
+            'GASTO' => (Brand.expense, Brand.expenseSoft, Icons.north_east_rounded, '−'),
+            _ => (Brand.blue, Brand.blueSoft, Icons.swap_horiz_rounded, ''),
+          };
     final title = (t.titulo?.isNotEmpty == true)
         ? t.titulo!
         : (t.categoriaNombre ?? 'Movimiento');

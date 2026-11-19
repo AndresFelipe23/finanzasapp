@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/cuenta_models.dart';
 import '../../core/models/transaccion_models.dart';
+import '../../core/notifications/notification_service.dart';
 import '../../core/prefs/form_prefs.dart';
 import '../../core/theme/brand.dart';
 import '../../core/theme/brand_form.dart';
@@ -22,7 +23,28 @@ final _money = NumberFormat.currency(
 
 /// Mover dinero entre dos cuentas propias. Propone el último par usado.
 class CreateTransferScreen extends ConsumerStatefulWidget {
-  const CreateTransferScreen({super.key});
+  const CreateTransferScreen({
+    super.key,
+    this.destinoId,
+    this.monto,
+    this.nota,
+    this.titulo = 'Transferir',
+  });
+
+  /// Pagar tarjeta: la tarjeta como destino, la deuda como monto sugerido.
+  factory CreateTransferScreen.pagarTarjeta(Cuenta tarjeta, {Key? key}) =>
+      CreateTransferScreen(
+        key: key,
+        destinoId: tarjeta.id,
+        monto: tarjeta.deuda > 0 ? tarjeta.deuda : null,
+        nota: 'Pago de ${tarjeta.nombre}',
+        titulo: 'Pagar tarjeta',
+      );
+
+  final int? destinoId;
+  final double? monto;
+  final String? nota;
+  final String titulo;
 
   @override
   ConsumerState<CreateTransferScreen> createState() =>
@@ -32,13 +54,16 @@ class CreateTransferScreen extends ConsumerStatefulWidget {
 class _CreateTransferScreenState extends ConsumerState<CreateTransferScreen> {
   final _monto = AmountEntry();
   final _notaCtrl = TextEditingController();
-  int? _origenId;
-  int? _destinoId;
+  late int? _origenId;
+  late int? _destinoId = widget.destinoId;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
+    _origenId = null;
+    _monto.set(widget.monto);
+    _notaCtrl.text = widget.nota ?? '';
     _cargarUltimoPar();
   }
 
@@ -123,6 +148,10 @@ class _CreateTransferScreenState extends ConsumerState<CreateTransferScreen> {
         ref.read(transactionsNotifierProvider.notifier).refresh(),
         ref.read(accountsNotifierProvider.notifier).refresh(),
       ]);
+      // Pagar la tarjeta cambia su deuda: reprogramar sus recordatorios
+      NotificationService.instance.programarPagosTarjeta(
+        ref.read(accountsNotifierProvider).valueOrNull ?? const [],
+      );
       if (!mounted) return;
       Navigator.of(context).pop();
       showBrandSnack(
@@ -215,7 +244,15 @@ class _CreateTransferScreenState extends ConsumerState<CreateTransferScreen> {
 
     // Sin par recordado: la de más saldo como origen y otra como destino
     final porSaldo = [...cuentas]..sort((a, b) => _saldo(b).compareTo(_saldo(a)));
-    final origen = byId(_origenId) ?? porSaldo.firstOrNull;
+    // Origen: el recordado, salvo que sea el destino ya elegido (Pagar
+    // tarjeta); si no, la de más saldo que no sea tarjeta de crédito
+    final elegido = byId(_origenId);
+    final origen = elegido != null && elegido.id != _destinoId
+        ? elegido
+        : porSaldo
+                .where((c) => c.id != _destinoId && !c.esTarjetaCredito)
+                .firstOrNull ??
+            porSaldo.where((c) => c.id != _destinoId).firstOrNull;
     final destino = byId(_destinoId) ??
         porSaldo.where((c) => c.id != origen?.id).firstOrNull;
     final distintasMonedas =
@@ -244,7 +281,7 @@ class _CreateTransferScreenState extends ConsumerState<CreateTransferScreen> {
                       ),
                       Expanded(
                         child: Text(
-                          'Transferir',
+                          widget.titulo,
                           textAlign: TextAlign.center,
                           style: Brand.text(
                             size: 17,
@@ -362,7 +399,7 @@ class _CreateTransferScreenState extends ConsumerState<CreateTransferScreen> {
               ListenableBuilder(
                 listenable: _monto,
                 builder: (_, __) => BrandButton(
-                  label: _monto.isEmpty ? 'Escribe un monto' : 'Transferir',
+                  label: _monto.isEmpty ? 'Escribe un monto' : widget.titulo,
                   background: Brand.ink,
                   loading: _saving,
                   onPressed: _monto.isEmpty ? null : () => _save(origen, destino),

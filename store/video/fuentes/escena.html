@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&display=block" rel="stylesheet">
+<!--
+  Piezas del video de Play Store (1920 × 1080). Uso:
+    escena.html?n=1      → fondo de la escena 1 (título a la izquierda; el
+                            teléfono lo pone ffmpeg a la derecha)
+    escena.html?bisel=1  → marco del teléfono con la pantalla transparente
+    escena.html?n=intro  → portada · escena.html?n=fin → cierre
+  Las genera armar-video.sh. El hueco de la pantalla está en x=1180, y=92,
+  420 × 896 (mismos números que en armar-video.sh).
+-->
+<style>
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;font-family:Manrope,system-ui,sans-serif;background:transparent}
+  .fondo{position:absolute;inset:0;color:#fff}
+  .texto{position:absolute;left:150px;top:0;bottom:0;width:860px;display:flex;flex-direction:column;justify-content:center}
+  .marca{display:flex;align-items:center;gap:14px;font-weight:800;font-size:26px;margin-bottom:34px;opacity:.95}
+  .marca svg{width:52px;height:52px}
+  h1{margin:0;font-size:84px;line-height:1.05;font-weight:800;letter-spacing:-2px}
+  p{margin:26px 0 0;font-size:36px;line-height:1.4;font-weight:600;opacity:.85}
+  /* Marco del teléfono: hueco transparente con esquinas redondeadas */
+  /* Borde de 14 px con radio 58: el radio interior (44) es el mismo de la
+     máscara con la que ffmpeg redondea las esquinas del video */
+  .bisel{position:absolute;left:1166px;top:78px;width:448px;height:924px;border-radius:58px;
+    box-sizing:border-box;border:14px solid #0a1712;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+  /* Máscara del video (escena.html?mascara=1): blanco donde se ve */
+  .mascara{position:absolute;left:0;top:0;width:420px;height:896px;border-radius:44px;background:#fff}
+  .centro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  .centro svg{width:150px;height:150px;margin-bottom:30px}
+  .centro h1{font-size:96px}
+  .centro p{max-width:1100px}
+  .play{margin-top:44px;display:inline-flex;align-items:center;gap:14px;background:#fff;color:#0B3B2C;
+    border-radius:999px;padding:18px 34px;font-size:32px;font-weight:800}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 96 96">
+  <rect width="96" height="96" rx="24" fill="#124A38"/>
+  <rect x="30" y="22" width="13" height="52" rx="4" fill="#7FD1AE"/><rect x="30" y="22" width="38" height="13" rx="4" fill="#7FD1AE"/>
+  <rect x="30" y="43" width="27" height="12" rx="4" fill="#7FD1AE"/><circle cx="68" cy="67" r="7" fill="#F0A673"/>
+</symbol></defs></svg>
+<div id="raiz"></div>
+<script>
+  // Un color y un mensaje por escena (mismos colores que las capturas)
+  const escenas = {
+    1: ['#0B3B2C', 'Todo tu dinero en un vistazo', 'Saldos, gastos del mes y presupuestos en una sola pantalla.'],
+    2: ['#B4531A', 'Registra un gasto en segundos', 'Monto, categoría y listo. Con su propio teclado.'],
+    3: ['#0B6E4F', 'Se registra solo', 'Lee los avisos de tu banco y anota tus compras e ingresos.'],
+    4: ['#124A38', 'Controla tus presupuestos', 'Te avisamos cuando vas en el 80% y el 100%.'],
+    5: ['#6B3FA0', 'Ahorra para tus metas', 'Aparta lo del mes con un toque, o un porcentaje de cada ingreso.'],
+    6: ['#1F5FAD', 'Tus créditos bajo control', 'Cuotas, intereses y abono a capital, con aviso antes de cada pago.'],
+    7: ['#0B6E4F', 'Registra sin abrir la app', 'Desde el widget o los atajos de los ajustes rápidos.'],
+  };
+  const q = new URLSearchParams(location.search);
+  const raiz = document.getElementById('raiz');
+  const fondo = (color) =>
+    `radial-gradient(1100px 800px at 85% 10%, rgba(255,255,255,.12), transparent 70%), ${color}`;
+  const logo = (cls = '') => `<svg class="${cls}"><use href="#logo"/></svg>`;
+
+  if (q.get('mascara')) {
+    document.body.style.background = '#000';
+    raiz.innerHTML = '<div class="mascara"></div>';
+  } else if (q.get('bisel')) {
+    raiz.innerHTML = '<div class="bisel"></div>';
+  } else if (q.get('n') === 'intro') {
+    raiz.innerHTML = `<div class="fondo" style="background:${fondo('#0B3B2C')}"><div class="centro">
+      ${logo()}<h1>Financially</h1><p>Tus finanzas claras, sin esfuerzo</p></div></div>`;
+  } else if (q.get('n') === 'fin') {
+    raiz.innerHTML = `<div class="fondo" style="background:${fondo('#0B3B2C')}"><div class="centro">
+      ${logo()}<h1>Tus finanzas claras,<br>sin esfuerzo</h1>
+      <div class="play">▶ Descárgala gratis en Google Play</div></div></div>`;
+  } else {
+    const [color, h, p] = escenas[q.get('n')];
+    raiz.innerHTML = `<div class="fondo" style="background:${fondo(color)}"><div class="texto">
+      <div class="marca">${logo()}Financially</div><h1>${h}</h1><p>${p}</p></div></div>`;
+  }
+</script>
+</body></html>

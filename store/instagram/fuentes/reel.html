@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&display=block" rel="stylesheet">
+<!--
+  Piezas del reel de Instagram (1080 × 1920). Uso:
+    reel.html?n=1…5        → fondo de la escena (título arriba)
+    reel.html?n=gancho     → pregunta inicial · reel.html?n=fin → cierre
+    reel.html?bisel=1      → marco del teléfono (pantalla transparente)
+    reel.html?mascara=1    → máscara redondeada del video (600 × 1279)
+  Hueco de la pantalla: x=240, y=620, 600 × 1279, radio 64 (igual que en
+  armar-reel.sh). El título va entre y=250 y y=560: arriba Instagram pone su
+  barra y abajo el texto del reel.
+-->
+<style>
+  html,body{margin:0;width:1080px;height:1920px;overflow:hidden;font-family:Manrope,system-ui,sans-serif;background:transparent}
+  .fondo{position:absolute;inset:0;color:#fff}
+  .titulo{position:absolute;left:80px;right:80px;top:250px;height:310px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center}
+  h1{margin:0;font-size:88px;line-height:1.04;font-weight:800;letter-spacing:-2px}
+  h1 em{font-style:normal;color:#7FD1AE}
+  .centro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 90px}
+  .centro svg{width:190px;height:190px;margin-bottom:50px}
+  .centro h1{font-size:104px}
+  .centro p{margin:36px 0 0;font-size:44px;font-weight:600;opacity:.85}
+  .pronto{margin-top:50px;display:inline-flex;background:#fff;color:#0B3B2C;border-radius:999px;padding:20px 38px;font-size:38px;font-weight:800}
+  .bisel{position:absolute;left:226px;top:606px;width:628px;height:1307px;border-radius:78px;box-sizing:border-box;
+    border:14px solid #0a1712;box-shadow:0 40px 90px rgba(0,0,0,.35)}
+  .mascara{position:absolute;left:0;top:0;width:600px;height:1279px;border-radius:64px;background:#fff}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 96 96">
+  <rect width="96" height="96" rx="24" fill="#124A38"/>
+  <rect x="30" y="22" width="13" height="52" rx="4" fill="#7FD1AE"/><rect x="30" y="22" width="38" height="13" rx="4" fill="#7FD1AE"/>
+  <rect x="30" y="43" width="27" height="12" rx="4" fill="#7FD1AE"/><circle cx="68" cy="67" r="7" fill="#F0A673"/>
+</symbol></defs></svg>
+<div id="raiz"></div>
+<script>
+  const escenas = {
+    1: ['#B4531A', 'Anota un gasto<br>en <em style="color:#FFD9C2">segundos</em>'],
+    2: ['#0B6E4F', 'Se registra solo con<br>el <em>aviso de tu banco</em>'],
+    3: ['#124A38', 'Te avisa<br><em>antes de pasarte</em>'],
+    4: ['#6B3FA0', 'Ahorra para<br><em style="color:#E6D8FF">tus metas</em>'],
+    5: ['#0B3B2C', 'Registra sin<br><em>abrir la app</em>'],
+  };
+  const q = new URLSearchParams(location.search);
+  const raiz = document.getElementById('raiz');
+  const fondo = (c) => `radial-gradient(900px 800px at 85% 0%, rgba(255,255,255,.14), transparent 70%), ${c}`;
+  const n = q.get('n');
+  if (q.get('mascara')) {
+    document.body.style.background = '#000';
+    raiz.innerHTML = '<div class="mascara"></div>';
+  } else if (q.get('bisel')) {
+    raiz.innerHTML = '<div class="bisel"></div>';
+  } else if (n === 'gancho') {
+    raiz.innerHTML = `<div class="fondo" style="background:${fondo('#0B3B2C')}"><div class="centro">
+      <h1>¿Todavía anotas<br>tus gastos en<br><em>una libreta</em>?</h1></div></div>`;
+  } else if (n === 'fin') {
+    raiz.innerHTML = `<div class="fondo" style="background:${fondo('#0B3B2C')}"><div class="centro">
+      <svg><use href="#logo"/></svg><h1>Financially</h1><p>Tus finanzas claras, sin esfuerzo</p>
+      <div class="pronto">▶ Muy pronto en Google Play</div></div></div>`;
+  } else {
+    const [c, h] = escenas[n];
+    raiz.innerHTML = `<div class="fondo" style="background:${fondo(c)}"><div class="titulo"><h1>${h}</h1></div></div>`;
+  }
+</script>
+</body></html>

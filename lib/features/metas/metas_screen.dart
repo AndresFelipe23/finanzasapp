@@ -21,17 +21,6 @@ const _palette = [
   (Brand.expense, Brand.expenseSoft),
 ];
 
-/// Meses completos entre hoy y la fecha objetivo (mínimo 1).
-int _monthsLeft(DateTime target) {
-  final now = DateTime.now();
-  final months = (target.year - now.year) * 12 + target.month - now.month;
-  return months < 1 ? 1 : months;
-}
-
-/// Lo que hay que ahorrar cada mes para llegar a tiempo.
-double _monthlyNeeded(Meta m) =>
-    m.estaCompletada || m.estaVencida ? 0 : m.faltante / _monthsLeft(m.fechaObjetivo);
-
 // ─── Metas ────────────────────────────────────────────────────────────────────
 class MetasScreen extends ConsumerWidget {
   const MetasScreen({super.key});
@@ -117,7 +106,7 @@ class MetasScreen extends ConsumerWidget {
         .toList();
 
     final ahorrado = metas.fold<double>(0, (s, m) => s + m.montoActual);
-    final mensual = enCurso.fold<double>(0, (s, m) => s + _monthlyNeeded(m));
+    final mensual = enCurso.fold<double>(0, (s, m) => s + m.ahorroMensualNecesario);
 
     // El color se asigna por posición en la lista completa para que sea estable
     (Color, Color) colorOf(Meta m) =>
@@ -141,11 +130,7 @@ class MetasScreen extends ConsumerWidget {
       child: _GoalCard(
         meta: m,
         colors: colorOf(m),
-        onContribute: () => showDialog(
-          context: context,
-          useRootNavigator: true,
-          builder: (_) => AporteMetaDialog(meta: m),
-        ),
+        onContribute: () => abrirAporteMeta(context, m),
         onOptions: () => _showOptions(context, ref, m),
       ),
     );
@@ -389,7 +374,7 @@ class _GoalCard extends StatelessWidget {
     if (m.estaCompletada) return '¡Meta cumplida! · $fecha';
     if (!m.activa) return 'En pausa · Meta: $fecha';
     if (m.estaVencida) return 'Venció en $fecha · faltan ${_money.format(m.faltante)}';
-    return 'Meta: $fecha · ${_money.format(_monthlyNeeded(m))}/mes';
+    return 'Meta: $fecha · ${_money.format(m.ahorroMensualNecesario)}/mes';
   }
 
   @override
@@ -509,6 +494,22 @@ class _GoalCard extends StatelessWidget {
                     ),
                 ],
               ),
+              // Ritmo y regla de aporte automático
+              if (m.ritmo != null || (m.tieneAporteAuto && m.activa && !m.estaCompletada)) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    if (m.ritmo != null) _RitmoChip(meta: m),
+                    if (m.tieneAporteAuto && m.activa && !m.estaCompletada)
+                      _InfoChip(
+                        icon: Icons.bolt_rounded,
+                        texto: 'Aparta el ${NumberFormat('#,##0.##', 'es_CO').format(m.aporteAutoPorcentaje)}% de cada ingreso',
+                      ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -542,6 +543,74 @@ class _Message extends StatelessWidget {
             body,
             textAlign: TextAlign.center,
             style: Brand.text(size: 13, color: Brand.muted, height: 1.45),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Vas al día" / "Vas $X por delante" / "Te faltan $X para ir al día".
+class _RitmoChip extends StatelessWidget {
+  const _RitmoChip({required this.meta});
+
+  final Meta meta;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = meta.diferenciaRitmo.abs();
+    final (icono, texto, fg, bg) = switch (meta.ritmo!) {
+      RitmoMeta.adelantada => (
+        Icons.trending_up_rounded,
+        'Vas ${_money.format(d)} por delante',
+        Brand.accent,
+        Brand.accentSoft,
+      ),
+      RitmoMeta.alDia => (
+        Icons.check_circle_outline_rounded,
+        'Vas al día',
+        Brand.accent,
+        Brand.accentSoft,
+      ),
+      RitmoMeta.atrasada => (
+        Icons.trending_down_rounded,
+        'Te faltan ${_money.format(d)} para ir al día',
+        Brand.expense,
+        Brand.expenseSoft,
+      ),
+    };
+    return _InfoChip(icon: icono, texto: texto, fg: fg, bg: bg);
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({
+    required this.icon,
+    required this.texto,
+    this.fg = Brand.muted,
+    this.bg = Brand.bg,
+  });
+
+  final IconData icon;
+  final String texto;
+  final Color fg;
+  final Color bg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              texto,
+              style: Brand.text(size: 12, weight: FontWeight.w700, color: fg),
+            ),
           ),
         ],
       ),

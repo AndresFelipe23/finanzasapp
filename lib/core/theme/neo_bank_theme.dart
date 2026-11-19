@@ -60,18 +60,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
     required this.textSecondary,
     required this.border,
     required this.divider,
-    required this.glassFill,
-    required this.glassFillStrong,
-    required this.glassStrokeStart,
-    required this.glassStrokeEnd,
-    required this.glassShadow,
-    required this.blobAccent,
-    required this.blobTransfer,
-    required this.blobSuccess,
     required this.heroStart,
     required this.heroEnd,
-    required this.blurChrome,
-    required this.blurCard,
     required this.radiusSm,
     required this.radiusMd,
     required this.radiusLg,
@@ -92,18 +82,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
   final Color textSecondary;
   final Color border;
   final Color divider;
-  final Color glassFill;
-  final Color glassFillStrong;
-  final Color glassStrokeStart;
-  final Color glassStrokeEnd;
-  final Color glassShadow;
-  final Color blobAccent;
-  final Color blobTransfer;
-  final Color blobSuccess;
   final Color heroStart;
   final Color heroEnd;
-  final double blurChrome;
-  final double blurCard;
   final double radiusSm;
   final double radiusMd;
   final double radiusLg;
@@ -111,8 +91,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
   bool get isDark => brightness == Brightness.dark;
 
   // Paleta del diseño "Financially · App móvil" (los mismos valores que
-  // Brand): superficies sólidas, sin vidrio. Los tokens glass*, blob* y blur*
-  // se conservan por compatibilidad, pero ya resuelven a opacos o a cero.
+  // Brand): superficies sólidas, sin vidrio.
   static const AppTokens light = AppTokens(
     brightness: Brightness.light,
     bg: Color(0xFFF4F5F1),
@@ -129,18 +108,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
     textSecondary: Color(0xFF5A6762),
     border: Color(0xFFE3E6E0),
     divider: Color(0xFFE9ECE6),
-    glassFill: Color(0xFFFFFFFF),
-    glassFillStrong: Color(0xFFFFFFFF),
-    glassStrokeStart: Color(0xFFE3E6E0),
-    glassStrokeEnd: Color(0xFFE3E6E0),
-    glassShadow: Color(0x00000000),
-    blobAccent: Color(0x00000000),
-    blobTransfer: Color(0x00000000),
-    blobSuccess: Color(0x00000000),
     heroStart: Color(0xFF10201B),
     heroEnd: Color(0xFF10201B),
-    blurChrome: 0,
-    blurCard: 0,
     radiusSm: 14,
     radiusMd: 18,
     radiusLg: 24,
@@ -166,18 +135,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
     Color? textSecondary,
     Color? border,
     Color? divider,
-    Color? glassFill,
-    Color? glassFillStrong,
-    Color? glassStrokeStart,
-    Color? glassStrokeEnd,
-    Color? glassShadow,
-    Color? blobAccent,
-    Color? blobTransfer,
-    Color? blobSuccess,
     Color? heroStart,
     Color? heroEnd,
-    double? blurChrome,
-    double? blurCard,
     double? radiusSm,
     double? radiusMd,
     double? radiusLg,
@@ -198,18 +157,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
       textSecondary: textSecondary ?? this.textSecondary,
       border: border ?? this.border,
       divider: divider ?? this.divider,
-      glassFill: glassFill ?? this.glassFill,
-      glassFillStrong: glassFillStrong ?? this.glassFillStrong,
-      glassStrokeStart: glassStrokeStart ?? this.glassStrokeStart,
-      glassStrokeEnd: glassStrokeEnd ?? this.glassStrokeEnd,
-      glassShadow: glassShadow ?? this.glassShadow,
-      blobAccent: blobAccent ?? this.blobAccent,
-      blobTransfer: blobTransfer ?? this.blobTransfer,
-      blobSuccess: blobSuccess ?? this.blobSuccess,
       heroStart: heroStart ?? this.heroStart,
       heroEnd: heroEnd ?? this.heroEnd,
-      blurChrome: blurChrome ?? this.blurChrome,
-      blurCard: blurCard ?? this.blurCard,
       radiusSm: radiusSm ?? this.radiusSm,
       radiusMd: radiusMd ?? this.radiusMd,
       radiusLg: radiusLg ?? this.radiusLg,
@@ -235,22 +184,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       border: Color.lerp(border, other.border, t)!,
       divider: Color.lerp(divider, other.divider, t)!,
-      glassFill: Color.lerp(glassFill, other.glassFill, t)!,
-      glassFillStrong: Color.lerp(glassFillStrong, other.glassFillStrong, t)!,
-      glassStrokeStart: Color.lerp(
-        glassStrokeStart,
-        other.glassStrokeStart,
-        t,
-      )!,
-      glassStrokeEnd: Color.lerp(glassStrokeEnd, other.glassStrokeEnd, t)!,
-      glassShadow: Color.lerp(glassShadow, other.glassShadow, t)!,
-      blobAccent: Color.lerp(blobAccent, other.blobAccent, t)!,
-      blobTransfer: Color.lerp(blobTransfer, other.blobTransfer, t)!,
-      blobSuccess: Color.lerp(blobSuccess, other.blobSuccess, t)!,
       heroStart: Color.lerp(heroStart, other.heroStart, t)!,
       heroEnd: Color.lerp(heroEnd, other.heroEnd, t)!,
-      blurChrome: lerpDouble(blurChrome, other.blurChrome, t)!,
-      blurCard: lerpDouble(blurCard, other.blurCard, t)!,
       radiusSm: lerpDouble(radiusSm, other.radiusSm, t)!,
       radiusMd: lerpDouble(radiusMd, other.radiusMd, t)!,
       radiusLg: lerpDouble(radiusLg, other.radiusLg, t)!,

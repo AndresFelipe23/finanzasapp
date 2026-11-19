@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&display=block" rel="stylesheet">
+<!--
+  Piezas de Instagram de Financially. Uso:
+    pieza.html?post=1 … ?post=7      → post del feed, 1080 × 1350 (4:5)
+    pieza.html?historia=1 … =4      → historia, 1080 × 1920 (9:16)
+  Las pantallas son capturas reales (../base/N.png, cuenta demo).
+  Historias: el texto va entre y=250 y y=1670 (arriba y abajo Instagram
+  pone su interfaz y los stickers).
+-->
+<style>
+  :root{--deep:#0B3B2C;--mint:#7FD1AE;--peach:#F0A673}
+  html,body{margin:0;overflow:hidden;font-family:Manrope,system-ui,sans-serif}
+  .lienzo{position:relative;overflow:hidden;color:#fff}
+  .marca{display:flex;align-items:center;gap:14px;font-weight:800;font-size:30px}
+  .marca svg{width:56px;height:56px}
+  h1{margin:0;font-weight:800;letter-spacing:-2px;line-height:1.04}
+  h1 em{font-style:normal;color:var(--mint)}
+  p{margin:0;font-weight:600;opacity:.85;line-height:1.35}
+  .tel{position:absolute;left:50%;transform:translateX(-50%);background:#0a1712;padding:16px;
+    box-shadow:0 40px 90px rgba(0,0,0,.35)}
+  .tel .pantalla{width:100%;height:100%;overflow:hidden;background:#F4F5F1}
+  .tel img{width:100%;display:block}
+  .tel img.sinbarra{margin-top:-9.2%}
+  .pronto{display:inline-flex;align-items:center;gap:12px;background:#fff;color:var(--deep);
+    border-radius:999px;padding:16px 30px;font-size:30px;font-weight:800}
+  .chip{display:inline-block;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);
+    border-radius:999px;padding:10px 22px;font-size:26px;font-weight:700}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 96 96">
+  <rect width="96" height="96" rx="24" fill="#124A38"/>
+  <rect x="30" y="22" width="13" height="52" rx="4" fill="#7FD1AE"/><rect x="30" y="22" width="38" height="13" rx="4" fill="#7FD1AE"/>
+  <rect x="30" y="43" width="27" height="12" rx="4" fill="#7FD1AE"/><circle cx="68" cy="67" r="7" fill="#F0A673"/>
+</symbol></defs></svg>
+<div id="raiz"></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const fondo = (c) => `radial-gradient(900px 700px at 85% 0%, rgba(255,255,255,.14), transparent 70%), ${c}`;
+  const logo = '<svg><use href="#logo"/></svg>';
+  const marca = `<div class="marca">${logo}Financially</div>`;
+  // Teléfono: x centrado, y = arriba, w = ancho; se sale por abajo del lienzo
+  const tel = (img, y, w, barra = true) =>
+    `<div class="tel" style="top:${y}px;width:${w}px;height:${Math.round(w * 2.2)}px;border-radius:${w * 0.13}px">
+       <div class="pantalla" style="border-radius:${w * 0.13 - 16}px">
+         <img class="${barra ? 'sinbarra' : ''}" src="../base/${img}.png"></div></div>`;
+
+  // ── Posts 1080 × 1350 ────────────────────────────────────────────────
+  // [color, título, texto, captura]
+  const posts = {
+    2: ['#B4531A', 'Registra un gasto<br>en <em style="color:#FFD9C2">3 toques</em>', 'Monto, categoría y listo. Con su propio teclado.', 2],
+    3: ['#0B6E4F', '¿Pagaste con tarjeta?<br><em>Ya quedó anotado.</em>', 'Financially lee el aviso de tu banco y registra la compra sola.', 3],
+    4: ['#124A38', 'Te avisamos<br><em>antes de pasarte</em>', 'Presupuestos por categoría con alertas al 80% y al 100%.', 4],
+    5: ['#6B3FA0', 'Ahorra para lo<br><em style="color:#E6D8FF">que de verdad quieres</em>', 'Metas con ritmo y aporte automático de cada ingreso.', 5],
+    6: ['#1F5FAD', 'Tus créditos,<br><em style="color:#CFE0FF">cuota por cuota</em>', 'Intereses, abono a capital y aviso antes de cada pago.', 6],
+    7: ['#0B3B2C', 'Registra sin<br><em>abrir la app</em>', 'Desde el widget de tu pantalla de inicio.', 8],
+  };
+
+  // ── Historias 1080 × 1920 ────────────────────────────────────────────
+  const raiz = document.getElementById('raiz');
+  const post = q.get('post'), hist = q.get('historia');
+  if (post === '1') {
+    // Lanzamiento
+    raiz.innerHTML = `<div class="lienzo" style="width:1080px;height:1350px;background:${fondo('#0B3B2C')}">
+      <div style="position:absolute;left:90px;right:90px;top:90px;text-align:center">
+        <div style="display:flex;justify-content:center">${marca}</div>
+        <h1 style="font-size:92px;margin-top:40px">Tus finanzas <em>claras</em>,<br>sin esfuerzo</h1>
+        <div style="margin-top:34px"><span class="pronto">▶ Muy pronto en Google Play</span></div>
+      </div>${tel(1, 560, 560)}</div>`;
+  } else if (post) {
+    const [c, h, t, img] = posts[post];
+    raiz.innerHTML = `<div class="lienzo" style="width:1080px;height:1350px;background:${fondo(c)}">
+      <div style="position:absolute;left:90px;right:90px;top:80px;text-align:center">
+        <div style="display:flex;justify-content:center;opacity:.9">${marca}</div>
+        <h1 style="font-size:80px;margin-top:34px">${h}</h1>
+        <p style="font-size:32px;margin:24px auto 0;max-width:820px">${t}</p>
+      </div>${tel(img, 560, 560)}</div>`;
+  } else if (hist === '1') {
+    // Expectativa: sin teléfono, solo marca y mensaje
+    raiz.innerHTML = `<div class="lienzo" style="width:1080px;height:1920px;background:${fondo('#0B3B2C')}">
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 90px">
+        <svg style="width:200px;height:200px"><use href="#logo"/></svg>
+        <h1 style="font-size:104px;margin-top:60px">Algo nuevo llega<br>a tus <em>finanzas</em></h1>
+        <p style="font-size:42px;margin-top:36px">Muy pronto en Google Play</p>
+      </div></div>`;
+  } else if (hist === '2') {
+    raiz.innerHTML = `<div class="lienzo" style="width:1080px;height:1920px;background:${fondo('#B4531A')}">
+      <div style="position:absolute;left:90px;right:90px;top:270px;text-align:center">
+        <h1 style="font-size:96px">Anota un gasto<br>en <em style="color:#FFD9C2">segundos</em></h1>
+        <p style="font-size:40px;margin-top:28px">Sin libretas ni Excel.</p>
+      </div>${tel(2, 760, 640)}</div>`;
+  } else if (hist === '3') {
+    // Pregunta: deja espacio libre (y≈700–1050) para el sticker de encuesta
+    raiz.innerHTML = `<div class="lienzo" style="width:1080px;height:1920px;background:${fondo('#124A38')}">
+      <div style="position:absolute;left:90px;right:90px;top:270px;text-align:center">
+        <h1 style="font-size:100px">¿Sabes cuánto<br>gastaste <em>esta semana</em>?</h1>
+      </div>${tel(7, 1130, 640)}</div>`;
+  } else if (hist === '4') {
+    // Llamado a la acción: espacio libre (y≈1000–1150) para el sticker de enlace
+    raiz.innerHTML = `<div class="lienzo" style="width:1080px;height:1920px;background:${fondo('#0B3B2C')}">
+      <div style="position:absolute;left:90px;right:90px;top:270px;text-align:center">
+        <div style="display:flex;justify-content:center">${marca}</div>
+        <h1 style="font-size:96px;margin-top:44px">Tus finanzas <em>claras</em>,<br>sin esfuerzo</h1>
+        <div style="margin-top:40px;display:flex;flex-wrap:wrap;gap:12px;justify-content:center">
+          <span class="chip">Registro automático</span><span class="chip">Presupuestos</span>
+          <span class="chip">Metas</span><span class="chip">Créditos</span></div>
+        <p style="font-size:38px;margin-top:40px">Muy pronto en Google Play</p>
+      </div>${tel(1, 1280, 600)}</div>`;
+  }
+</script>
+</body></html>

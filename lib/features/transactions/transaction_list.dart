@@ -49,8 +49,8 @@ class TransactionDayGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     // Neto del día: transferencias no suman ni restan
     final net = items.fold<double>(0, (s, t) {
-      if (t.tipoNombre == 'INGRESO') return s + t.monto;
-      if (t.tipoNombre == 'GASTO') return s - t.monto;
+      if (t.esIngreso) return s + t.monto;
+      if (t.esGasto) return s - t.monto;
       return s;
     });
     final netLabel =
@@ -113,7 +113,7 @@ class _Row extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (fg, bg, sign, label) = movementStyle(t.tipoNombre);
+    final (fg, bg, sign, label) = estiloMovimiento(t);
     final title = (t.titulo?.isNotEmpty == true)
         ? t.titulo!
         : (t.categoriaNombre ?? label);
@@ -137,7 +137,9 @@ class _Row extends StatelessWidget {
                 color: bg,
                 borderRadius: BorderRadius.circular(13),
               ),
-              child: t.tipoNombre == 'TRANSFERENCIA'
+              child: t.esAporteMeta
+                  ? Icon(Icons.savings_outlined, size: 20, color: fg)
+                  : t.esTransferencia
                   ? Icon(Icons.swap_horiz_rounded, size: 20, color: fg)
                   : Text(
                       title.characters.first.toUpperCase(),

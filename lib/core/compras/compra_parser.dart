@@ -49,6 +49,41 @@ const _fuentes = {
   'com.nu.production': 'Nu',
 };
 
+// Apps de SMS: el banco se reconoce por el texto ("Bancolombia: Compraste…")
+const _sms = {
+  'com.google.android.apps.messaging',
+  'com.android.mms',
+  'com.samsung.android.messaging',
+  'com.miui.smsextra',
+};
+const _bancosSms = {
+  'bancolombia': 'Bancolombia',
+  'nequi': 'Nequi',
+  'daviplata': 'Daviplata',
+  'davivienda': 'Davivienda',
+  'bbva': 'BBVA',
+  'banco de bogot': 'Banco de Bogotá',
+  'colpatria': 'Scotiabank Colpatria',
+  'falabella': 'Banco Falabella',
+};
+
+/// El banco de la notificación: por la app que la envía o, en un SMS, por el
+/// nombre que aparece en el texto.
+String? _fuenteDe(String paquete, String todo) {
+  final porApp = _fuentes[paquete];
+  if (porApp != null || !_sms.contains(paquete)) return porApp;
+  final t = todo.toLowerCase();
+  for (final e in _bancosSms.entries) {
+    if (t.contains(e.key)) return e.value;
+  }
+  return null;
+}
+
+// Salidas que no son compras en un comercio: se nombran por lo que son
+final _transferencia = RegExp(r'transfer(iste|encia)', caseSensitive: false);
+final _cuentaDestino = RegExp(r'a la cuenta\s*\*?\s*(\d+)', caseSensitive: false);
+final _qr = RegExp(r'c[oó]digo qr', caseSensitive: false);
+
 final _monto = RegExp(r'(US\$|\$|COP|USD|MXN)\s?(\d[\d.,]*)', caseSensitive: false);
 // Ni compra ni ingreso: retiros en cajero y pagos a tu propia tarjeta
 final _ignorar = RegExp(
@@ -122,6 +157,14 @@ CompraDetectada? leerCompra(String paquete, String titulo, String texto) {
       nombre = nombre.trim();
       if (nombre.length >= 2) comercio = nombre;
     }
+  } else if (_transferencia.hasMatch(todo)) {
+    // "Transferiste $831,010 … a la cuenta *79033248313"
+    final destino = _cuentaDestino.firstMatch(todo)?.group(1);
+    comercio = destino == null
+        ? 'Transferencia'
+        : 'Transferencia a cuenta *${destino.substring(destino.length > 4 ? destino.length - 4 : 0)}';
+  } else if (_qr.hasMatch(todo)) {
+    comercio = 'Pago con código QR';
   } else if (_billeteras.containsKey(paquete) &&
       !_monto.hasMatch(titulo) &&
       titulo.trim().isNotEmpty) {
@@ -147,7 +190,7 @@ CompraDetectada? leerCompra(String paquete, String titulo, String texto) {
     moneda: moneda,
     comercio: comercio,
     ultimos4: _tarjeta.firstMatch(todo)?.group(1),
-    fuente: _fuentes[paquete],
+    fuente: _fuenteDe(paquete, todo),
   );
 }
 

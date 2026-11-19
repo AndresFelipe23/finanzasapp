@@ -17,6 +17,9 @@ class QuickRequest {
   static const recurrentes = 'recurrentes';
   static const presupuestos = 'presupuestos';
   static const movimiento = 'movimiento'; // detalle de un movimiento (id)
+  static const cuenta = 'cuenta'; // detalle de una cuenta (id)
+  static const prestamos = 'prestamos';
+  static const movimientos = 'movimientos'; // pestaña de movimientos
   static const _destinos = {
     gasto,
     ingreso,
@@ -24,6 +27,9 @@ class QuickRequest {
     recurrentes,
     presupuestos,
     movimiento,
+    cuenta,
+    prestamos,
+    movimientos,
   };
 
   final String destino;

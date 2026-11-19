@@ -210,6 +210,7 @@ class BrandField extends StatelessWidget {
     this.onChanged,
     this.textInputAction,
     this.onSubmitted,
+    this.errorText,
   });
 
   final String label;
@@ -223,6 +224,9 @@ class BrandField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
+
+  /// Error que se muestra debajo del campo sin esperar a un submit.
+  final String? errorText;
 
   static OutlineInputBorder _border(Color c, [double w = 1]) =>
       OutlineInputBorder(
@@ -258,6 +262,8 @@ class BrandField extends StatelessWidget {
               vertical: 16,
             ),
             suffixIcon: suffix,
+            errorText: errorText,
+            errorMaxLines: 2,
             border: _border(Brand.inputBorder),
             enabledBorder: _border(Brand.inputBorder),
             focusedBorder: _border(Brand.accent, 1.5),

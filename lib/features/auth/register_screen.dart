@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/utils/abrir_enlace.dart';
+import '../../core/config/app_config.dart';
 import '../../core/api/api_client.dart';
 import '../../core/models/auth_models.dart';
 import '../../core/theme/brand.dart';
@@ -78,25 +80,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _showLegal(String title) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title, style: Brand.text(size: 18, weight: FontWeight.w800)),
-        content: Text(
-          'Estamos preparando este documento. Lo podrás consultar aquí '
-          'muy pronto.',
-          style: Brand.text(color: Brand.muted, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Entendido'),
-          ),
-        ],
-      ),
-    );
-  }
+  /// Abre los términos o el aviso de privacidad, publicados por el API.
+  void _showLegal(String title) => abrirEnlace(
+    context,
+    title.startsWith('Términos') ? AppConfig.termsOfServiceUrl : AppConfig.privacyPolicyUrl,
+  );
 
   @override
   Widget build(BuildContext context) {

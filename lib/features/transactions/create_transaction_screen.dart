@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../core/api/api_client.dart';
 import '../../core/compras/compra_automatica.dart';
 import '../../core/models/category_models.dart';
+import '../../core/models/meta_models.dart';
 import '../../core/models/cuenta_models.dart';
 import '../../core/models/pago_recurrente_models.dart';
 import '../../core/models/transaccion_models.dart';
+import '../../core/notifications/notification_service.dart';
 import '../../core/prefs/form_prefs.dart';
 import '../../core/theme/brand.dart';
 import '../../core/theme/brand_form.dart';
@@ -13,6 +16,9 @@ import '../../core/theme/brand_keypad.dart';
 import '../accounts/account_style.dart';
 import '../accounts/accounts_provider.dart';
 import '../categories/categories_provider.dart';
+import '../metas/aporte_auto.dart';
+import '../metas/metas_provider.dart';
+import '../presupuestos/presupuestos_provider.dart';
 import '../recurring/recurring_provider.dart';
 import '../recurring/recurring_service.dart';
 import 'category_suggestion.dart';
@@ -84,6 +90,10 @@ class _CreateTransactionScreenState
   DateTime? _fechaFin;
   bool _saving = false;
 
+  // Metas con aporte automático, consultadas antes de guardar un ingreso para
+  // poder decir cuánto se apartó
+  Future<List<Meta>>? _reglasMetas;
+
   bool get _isIngreso => _tipo == 'INGRESO';
   bool get _editando => widget.editar != null;
 
@@ -103,6 +113,7 @@ class _CreateTransactionScreenState
       _monto.set(widget.montoInicial);
       _notaCtrl.text = widget.notaInicial ?? '';
     }
+    if (_isIngreso && widget.editar == null) _reglasMetas = AporteAuto.reglas(ApiClient());
     _cargarUltimasCuentas();
   }
 
@@ -203,6 +214,19 @@ class _CreateTransactionScreenState
     if (picked != null) setState(() => _metodoPagoId = picked == 0 ? null : picked);
   }
 
+  /// Tras guardar un gasto: actualiza los presupuestos en pantalla y avisa
+  /// al momento si alguno pasó del 80% o del 100% (sin esperar al guardar).
+  void _revisarPresupuestos(String causa, Categoria categoria, Cuenta cuenta) {
+    if (_isIngreso) return;
+    ref.read(presupuestosNotifierProvider.notifier).refresh();
+    NotificationService.instance.revisarPresupuestos(
+      ApiClient(),
+      causa: '$causa en ${categoria.nombre}',
+      categoriaId: categoria.id,
+      cuentaId: cuenta.id,
+    );
+  }
+
   DateTime _conHoraActual(DateTime dia) {
     final ahora = DateTime.now();
     return DateTime(dia.year, dia.month, dia.day, ahora.hour, ahora.minute, ahora.second);
@@ -242,6 +266,9 @@ class _CreateTransactionScreenState
     final nota = _notaCtrl.text.trim();
     if (original != null) return _guardarCambios(original, cuenta, categoria, monto, nota);
     try {
+      final reglas = _isIngreso
+          ? await (_reglasMetas ??= AporteAuto.reglas(ApiClient()))
+          : const <Meta>[];
       await ref.read(transactionsNotifierProvider.notifier).createTransaction(
         CreateTransaccionRequest(
           cuentaId: cuenta.id,
@@ -258,6 +285,7 @@ class _CreateTransactionScreenState
         ),
       );
       await FormPrefs.setInt(FormPrefs.lastAccount(_tipo), cuenta.id);
+      _revisarPresupuestos('este gasto de ${_money.format(monto)}', categoria, cuenta);
 
       if (_repetir) {
         String fmt(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
@@ -281,13 +309,19 @@ class _CreateTransactionScreenState
         ref.invalidate(recurringProvider);
       }
 
+      // Ingreso: ¿el servidor apartó algo para una meta?
+      String? apartado;
+      if (_isIngreso && reglas.isNotEmpty) {
+        apartado = AporteAuto.resumen(await AporteAuto.aplicados(ApiClient(), reglas, monto));
+        if (apartado != null) ref.read(metasNotifierProvider.notifier).refresh();
+      }
       await ref.read(accountsNotifierProvider.notifier).refresh();
       if (!mounted) return;
       // true: se guardó (la hoja de registro rápido se cierra al recibirlo)
       Navigator.of(context).pop(true);
       showBrandSnack(
         context,
-        '${_isIngreso ? 'Ingreso' : 'Gasto'} de ${_money.format(monto)} en ${categoria.nombre}',
+        '${_isIngreso ? 'Ingreso' : 'Gasto'} de ${_money.format(monto)} en ${categoria.nombre}${apartado == null ? '' : ' · $apartado'}',
         error: false,
       );
     } catch (e) {
@@ -332,6 +366,7 @@ class _CreateTransactionScreenState
       // Compra registrada automáticamente: la tarjeta queda asociada a la
       // cuenta elegida para las próximas compras con ella
       await CompraAutomatica.aprenderTarjeta(original.notas, cuenta.id);
+      _revisarPresupuestos('el cambio en este gasto', categoria, cuenta);
       await ref.read(accountsNotifierProvider.notifier).refresh();
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -404,6 +439,7 @@ class _CreateTransactionScreenState
                         tone: tone,
                         onChanged: (v) => setState(() {
                           _tipo = v;
+                          if (v == 'INGRESO' && !_editando) _reglasMetas ??= AporteAuto.reglas(ApiClient());
                           _cuentaId = null; // vuelve a la última cuenta de ese tipo
                           if (categoria != null &&
                               categoria.tipo != 'AMBOS' &&

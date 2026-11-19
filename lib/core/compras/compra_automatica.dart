@@ -12,7 +12,9 @@ import '../../features/transactions/transactions_service.dart';
 import '../api/api_client.dart';
 import '../currency/exchange_rates.dart';
 import '../home_widget/home_widget_sync.dart';
+import '../../features/metas/aporte_auto.dart';
 import '../models/cuenta_models.dart';
+import '../models/meta_models.dart';
 import '../models/transaccion_models.dart';
 import '../notifications/notification_service.dart';
 import '../prefs/form_prefs.dart';
@@ -206,6 +208,9 @@ class CompraAutomatica {
         if (original != null) original,
       ].join(' · ');
 
+      // Ingreso: metas con aporte automático (el servidor aparta el %)
+      final reglas = compra.ingreso ? await AporteAuto.reglas(api) : const <Meta>[];
+
       final creada = await TransactionsService(api).createTransaction(
         CreateTransaccionRequest(
           cuentaId: cuenta.id,
@@ -219,15 +224,31 @@ class CompraAutomatica {
         ),
       );
 
+      final apartado = compra.ingreso
+          ? AporteAuto.resumen(await AporteAuto.aplicados(api, reglas, monto))
+          : null;
       await notif.showCompra(
         id: creada.id,
         titulo: '✓ $tipoLabel de ${_money.format(monto)} · $lugar',
-        cuerpo: categoria != null
-            ? '${categoria.nombre} · ${cuenta.nombre}. Toca para revisarlo'
-            : 'Sin categoría · ${cuenta.nombre}. Toca para elegirla',
+        cuerpo: (categoria != null
+                ? '${categoria.nombre} · ${cuenta.nombre}'
+                : 'Sin categoría · ${cuenta.nombre}') +
+            (apartado == null ? '' : '. $apartado') +
+            (categoria != null ? '. Toca para revisarlo' : '. Toca para elegirla'),
         payload: 'financially://${QuickRequest.movimiento}?id=${creada.id}',
       );
       await HomeWidgetSync.update([...trans, creada]);
+      // El resumen del domingo incluye lo recién registrado
+      await notif.programarResumenSemanal(trans: [...trans, creada], api: api);
+      // Al momento: si esta compra lleva un presupuesto al 80% o al 100%
+      if (!compra.ingreso) {
+        await notif.revisarPresupuestos(
+          api,
+          causa: 'tu compra de ${_money.format(monto)} $lugar',
+          categoriaId: categoriaId,
+          cuentaId: cuenta.id,
+        );
+      }
       await _anotar(fuente, '$titulo · $texto', '$tipoLabel registrado: $montoTxt $lugar');
     } catch (e) {
       debugPrint('Registro automático falló: $e');

@@ -57,6 +57,8 @@ void main() async {
 Future<void> quickEntryMain(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppConfig.initialize();
+  // Para avisar al momento si el gasto lleva un presupuesto al 80% o 100%
+  await NotificationService.instance.init();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/models/prestamo_models.dart';
+import '../../core/notifications/notification_service.dart';
 import 'prestamos_service.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
@@ -22,6 +23,8 @@ class PrestamosNotifier extends StateNotifier<AsyncValue<List<Prestamo>>> {
       state = const AsyncLoading<List<Prestamo>>().copyWithPrevious(state);
       final items = await _service.getAll(activos: activos);
       state = AsyncValue.data(items);
+      // Tras crear, editar o pagar: los avisos de cuota quedan al día
+      if (activos == null) NotificationService.instance.programarCuotasPrestamos(items);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }

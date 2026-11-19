@@ -7,13 +7,20 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
+import '../../features/accounts/accounts_service.dart';
+import '../../features/prestamos/prestamos_service.dart';
 import '../../features/presupuestos/presupuestos_service.dart';
 import '../../features/recurring/recurring_service.dart';
 import '../api/api_client.dart';
+import '../currency/exchange_rates.dart';
+import '../models/cuenta_models.dart';
 import '../models/pago_recurrente_models.dart';
+import '../models/prestamo_models.dart';
 import '../models/presupuesto_models.dart';
+import '../models/transaccion_models.dart';
 import '../quick_launch/quick_launch.dart';
 import 'quick_record.dart';
+import 'resumen_semanal.dart';
 
 final notificationsEnabledProvider =
     StateNotifierProvider<NotificationsEnabledNotifier, bool>(
@@ -43,7 +50,11 @@ class NotificationService {
   static const _recurringIdBase = 100000;
   static const _recurringIdMax = 199999;
   static const _quickId = 300000;
+  static const _tarjetaIdBase = 600000; // recordatorios de pago de tarjeta
+  static const _cuotaIdBase = 700000; // recordatorios de cuotas de préstamos
   static const _quickKey = 'quickRecordEnabled';
+  static const _resumenKey = 'weeklySummaryEnabled';
+  static const _resumenId = 800000;
   static const quickRecordAction = 'registro_rapido_gasto';
 
   final _plugin = FlutterLocalNotificationsPlugin();
@@ -91,7 +102,9 @@ class NotificationService {
       await _plugin.initialize(
         settings: const InitializationSettings(
           // Ícono de un color para la barra de estado (la F de la marca)
-          android: AndroidInitializationSettings('@drawable/ic_stat_financially'),
+          android: AndroidInitializationSettings(
+            '@drawable/ic_stat_financially',
+          ),
           // Los permisos se piden cuando el usuario activa las notificaciones
           iOS: DarwinInitializationSettings(
             requestAlertPermission: false,
@@ -104,6 +117,8 @@ class NotificationService {
       );
       enabled = await _storage.read(key: _enabledKey) == 'true';
       quickRecordEnabled = await _storage.read(key: _quickKey) == 'true';
+      // El resumen semanal viene encendido; solo se apaga si el usuario lo apaga
+      resumenSemanalEnabled = await _storage.read(key: _resumenKey) != 'false';
       _ready = true;
 
       // La app se abrió tocando una notificación
@@ -127,7 +142,9 @@ class NotificationService {
     }
     final action = r.actionId;
     QuickLaunch.request(
-      action != null && action.startsWith('financially://') ? action : r.payload,
+      action != null && action.startsWith('financially://')
+          ? action
+          : r.payload,
     );
   }
 
@@ -177,8 +194,139 @@ class NotificationService {
     } catch (e) {
       debugPrint('Recordatorios no sincronizados: $e');
     }
+    await revisarPresupuestos(api);
     try {
-      await checkBudgets(await PresupuestosService(api).getAll(activos: true));
+      await programarPagosTarjeta(await AccountsService(api).getAllAccounts());
+    } catch (e) {
+      debugPrint('Recordatorios de tarjeta no programados: $e');
+    }
+    try {
+      await programarCuotasPrestamos(await PrestamosService(api).getAll());
+    } catch (e) {
+      debugPrint('Recordatorios de cuotas no programados: $e');
+    }
+  }
+
+  /// Préstamos en cuotas activos: aviso a las 9:00 tres días antes de la
+  /// próxima cuota y el día que vence. En los que te deben, el aviso es para
+  /// cobrar. Se reprograman cada vez que se cargan los préstamos.
+  Future<void> programarCuotasPrestamos(List<Prestamo> prestamos) async {
+    if (!_ready || !enabled) return;
+    final pendientes = await _plugin.pendingNotificationRequests();
+    for (final p in pendientes) {
+      if (p.id >= _cuotaIdBase && p.id < _cuotaIdBase + 100000) {
+        await _plugin.cancel(id: p.id);
+      }
+    }
+
+    final ahora = DateTime.now();
+    for (final p in prestamos.where(
+      (p) => p.activa && !p.estaPagado && p.enCuotas,
+    )) {
+      final vence = p.proximoVencimiento;
+      if (vence == null) continue;
+      final debo = p.tipo == 'DEUDA';
+      final cuota = 'Cuota ${p.proximaCuota} de ${p.numeroCuotas}';
+      final monto = _money.format(p.cuotaTotal);
+      final avisos = [
+        (
+          vence.subtract(const Duration(days: 3)),
+          0,
+          debo
+              ? '$cuota de ${p.nombre} en 3 días'
+              : '${p.nombre} te paga en 3 días',
+        ),
+        (
+          vence,
+          1,
+          debo
+              ? 'Hoy vence la cuota de ${p.nombre}'
+              : 'Hoy ${p.nombre} te debe pagar',
+        ),
+      ];
+      for (final (dia, n, titulo) in avisos) {
+        final cuando = DateTime(dia.year, dia.month, dia.day, 9);
+        if (!cuando.isAfter(ahora)) continue;
+        await _plugin.zonedSchedule(
+          id: _cuotaIdBase + (p.id * 2 + n) % 100000,
+          scheduledDate: tz.TZDateTime.from(cuando, tz.UTC),
+          notificationDetails: const NotificationDetails(
+            android: _recurringChannel,
+            iOS: DarwinNotificationDetails(),
+          ),
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          title: titulo,
+          body:
+              '$cuota: $monto. Toca para ${debo ? 'pagarla' : 'registrar el cobro'}.',
+          payload: 'financially://${QuickRequest.prestamos}',
+        );
+      }
+    }
+  }
+
+  /// Tarjetas de crédito con día de pago y deuda: aviso a las 9:00 tres días
+  /// antes y el mismo día. Se reprograman al abrir la app y al pagar.
+  Future<void> programarPagosTarjeta(List<Cuenta> cuentas) async {
+    if (!_ready || !enabled) return;
+    final pendientes = await _plugin.pendingNotificationRequests();
+    for (final p in pendientes) {
+      if (p.id >= _tarjetaIdBase && p.id < _tarjetaIdBase + 100000) {
+        await _plugin.cancel(id: p.id);
+      }
+    }
+
+    final ahora = DateTime.now();
+    for (final c in cuentas.where(
+      (c) => c.activa && c.esTarjetaCredito && c.deuda > 0,
+    )) {
+      final pago = c.proximoPago(ahora);
+      if (pago == null) continue;
+      final avisos = [
+        (
+          pago.subtract(const Duration(days: 3)),
+          0,
+          'Tu tarjeta ${c.nombre} se paga en 3 días',
+        ),
+        (pago, 1, 'Hoy se paga tu tarjeta ${c.nombre}'),
+      ];
+      for (final (dia, n, titulo) in avisos) {
+        final cuando = DateTime(dia.year, dia.month, dia.day, 9);
+        if (!cuando.isAfter(ahora)) continue;
+        await _plugin.zonedSchedule(
+          id: _tarjetaIdBase + (c.id * 2 + n) % 100000,
+          scheduledDate: tz.TZDateTime.from(cuando, tz.UTC),
+          notificationDetails: const NotificationDetails(
+            android: _recurringChannel,
+            iOS: DarwinNotificationDetails(),
+          ),
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          title: titulo,
+          body: 'Deuda de ${_money.format(c.deuda)}. Toca para pagarla.',
+          payload: 'financially://${QuickRequest.cuenta}?id=${c.id}',
+        );
+      }
+    }
+  }
+
+  /// Revisa los presupuestos justo después de registrar un gasto (en la app,
+  /// desde la notificación o automáticamente) para avisar al momento si pasó
+  /// del 80% o del 100%. [causa] ("tu compra de $85.000 en Éxito") se
+  /// menciona en los presupuestos que ese gasto afecta ([categoriaId] y
+  /// [cuentaId] del gasto).
+  Future<void> revisarPresupuestos(
+    ApiClient api, {
+    String? causa,
+    int? categoriaId,
+    int? cuentaId,
+  }) async {
+    if (!_ready || !enabled) return;
+    try {
+      await checkBudgets(
+        await PresupuestosService(api).getAll(activos: true),
+        causa: causa,
+        categoriaId: categoriaId,
+        cuentaId: cuentaId,
+      );
     } catch (e) {
       debugPrint('Alertas de presupuesto no revisadas: $e');
     }
@@ -222,7 +370,8 @@ class NotificationService {
         // Inexacto: no requiere el permiso de alarmas exactas de Android 12+
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         title: 'Hoy se registra: $nombre',
-        body: '${_money.format(p.monto)} · ${p.frecuenciaLabel}'
+        body:
+            '${_money.format(p.monto)} · ${p.frecuenciaLabel}'
             '${p.cuentaNombre != null ? ' · ${p.cuentaNombre}' : ''}',
         payload: 'financially://${QuickRequest.recurrentes}',
       );
@@ -230,7 +379,12 @@ class NotificationService {
   }
 
   /// Avisa una sola vez por presupuesto y periodo al pasar el 80% y el 100%.
-  Future<void> checkBudgets(List<Presupuesto> items) async {
+  Future<void> checkBudgets(
+    List<Presupuesto> items, {
+    String? causa,
+    int? categoriaId,
+    int? cuentaId,
+  }) async {
     if (!_ready || !enabled) return;
 
     final sent = (await _storage.read(key: _budgetAlertsKey) ?? '')
@@ -256,16 +410,25 @@ class NotificationService {
       if (sent.contains(key)) continue;
 
       final restante = b.montoLimite - b.montoGastado;
+      // "Con tu compra de $85.000 en Éxito, …" solo si ese gasto cuenta aquí
+      final afecta =
+          causa != null &&
+          (b.categoriaId == null || b.categoriaId == categoriaId) &&
+          (b.cuentaId == null || b.cuentaId == cuentaId);
+      final detalle = umbral == 100
+          ? 'te pasaste por ${_money.format(-restante)} '
+                'de ${_money.format(b.montoLimite)}.'
+          : 'te quedan ${_money.format(restante)} '
+                'de ${_money.format(b.montoLimite)}.';
+      final cuerpo = afecta
+          ? 'Con $causa, $detalle'
+          : detalle[0].toUpperCase() + detalle.substring(1);
       await _plugin.show(
         id: 200000 + b.id % 100000,
         title: umbral == 100
             ? 'Superaste el presupuesto "${b.nombre}"'
             : 'Vas en el ${b.porcentaje.round()}% de "${b.nombre}"',
-        body: umbral == 100
-            ? 'Te pasaste por ${_money.format(-restante)} '
-                  'de ${_money.format(b.montoLimite)}.'
-            : 'Te quedan ${_money.format(restante)} '
-                  'de ${_money.format(b.montoLimite)}.',
+        body: cuerpo,
         notificationDetails: const NotificationDetails(
           android: _budgetChannel,
           iOS: DarwinNotificationDetails(),
@@ -284,6 +447,9 @@ class NotificationService {
   // ── Registro rápido (solo Android) ──────────────────────────────────────
 
   bool quickRecordEnabled = false;
+
+  /// Resumen de la semana, los domingos a las 8:00 p. m.
+  bool resumenSemanalEnabled = true;
 
   bool get quickRecordSupported => !kIsWeb && Platform.isAndroid;
 
@@ -330,7 +496,9 @@ class NotificationService {
                 quickRecordAction,
                 'Gasto',
                 inputs: [
-                  AndroidNotificationActionInput(label: 'Monto y nota: 25000 almuerzo'),
+                  AndroidNotificationActionInput(
+                    label: 'Monto y nota: 25000 almuerzo',
+                  ),
                 ],
                 // Se registra sin abrir la app; la notificación se queda
                 cancelNotification: false,
@@ -376,7 +544,8 @@ class NotificationService {
           android: AndroidNotificationDetails(
             'compras_automaticas',
             'Compras registradas',
-            channelDescription: 'Compras con tarjeta o el teléfono que se registran solas',
+            channelDescription:
+                'Compras con tarjeta o el teléfono que se registran solas',
             importance: Importance.defaultImportance,
             priority: Priority.defaultPriority,
             styleInformation: BigTextStyleInformation(cuerpo),
@@ -386,6 +555,120 @@ class NotificationService {
     } catch (e) {
       debugPrint('Aviso de compra no mostrado: $e');
     }
+  }
+
+  // ── Resumen semanal ─────────────────────────────────────────────────────
+
+  AndroidNotificationDetails _resumenAndroid(String cuerpo) =>
+      AndroidNotificationDetails(
+        'resumen_semanal',
+        'Resumen semanal',
+        channelDescription: 'Tu semana en números, los domingos por la noche',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+        styleInformation: BigTextStyleInformation(cuerpo),
+      );
+
+  /// Programa el resumen del próximo domingo a las 8:00 p. m. Una notificación
+  /// local no puede calcular su texto cuando suena, así que el contenido es el
+  /// de ahora y se vuelve a programar cada vez que cambian los movimientos
+  /// (en la app, en el registro rápido y en el registro automático). Si no
+  /// hubo movimientos en 14 días no se programa nada: no hay nada que contar.
+  ///
+  /// [presupuestos]: los ya cargados; si es null y hay [api], se consultan.
+  Future<void> programarResumenSemanal({
+    required List<Transaccion> trans,
+    List<Presupuesto>? presupuestos,
+    ApiClient? api,
+  }) async {
+    if (!_ready) return;
+    try {
+      final ahora = DateTime.now();
+      final hayActividad = trans.any(
+        (t) => t.fechaTransaccion.isAfter(
+          ahora.subtract(const Duration(days: 14)),
+        ),
+      );
+      if (!enabled || !resumenSemanalEnabled || !hayActividad) {
+        await _plugin.cancel(id: _resumenId);
+        return;
+      }
+      if (presupuestos == null && api != null) {
+        try {
+          presupuestos = await PresupuestosService(api).getAll(activos: true);
+        } catch (_) {
+          // Sin presupuestos el resumen sale igual, solo sin esa línea
+        }
+      }
+      final resumen = ResumenSemanal.calcular(
+        trans,
+        presupuestos ?? const [],
+        ahora,
+        tasas: await ExchangeRates.enCache(),
+      );
+      await _plugin.zonedSchedule(
+        id: _resumenId,
+        // TZDateTime.from conserva el instante exacto aunque tz.local sea UTC
+        scheduledDate: tz.TZDateTime.from(
+          ResumenSemanal.proximoDomingo(ahora),
+          tz.UTC,
+        ),
+        notificationDetails: NotificationDetails(
+          android: _resumenAndroid(resumen.cuerpo),
+          iOS: const DarwinNotificationDetails(),
+        ),
+        // Inexacto: no requiere el permiso de alarmas exactas de Android 12+
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        title: resumen.titulo,
+        body: resumen.cuerpo,
+        payload: 'financially://${QuickRequest.movimientos}',
+      );
+    } catch (e) {
+      debugPrint('Resumen semanal no programado: $e');
+    }
+  }
+
+  /// Muestra ahora cómo se verá el resumen (con lo que va de la semana).
+  Future<void> vistaPreviaResumen({
+    required List<Transaccion> trans,
+    List<Presupuesto>? presupuestos,
+  }) async {
+    if (!_ready) return;
+    final resumen = ResumenSemanal.calcular(
+      trans,
+      presupuestos ?? const [],
+      DateTime.now(),
+      tasas: await ExchangeRates.enCache(),
+    );
+    final cuerpo = resumen.sinActividad
+        ? 'Aún no hay movimientos esta semana. Cuando los registres, aquí verás '
+              'cuánto gastaste, en qué y cómo vas con tus presupuestos.'
+        : resumen.cuerpo;
+    await _plugin.show(
+      id: _resumenId + 1,
+      title: 'Así se verá tu resumen · ${resumen.titulo}',
+      body: cuerpo,
+      payload: 'financially://${QuickRequest.movimientos}',
+      notificationDetails: NotificationDetails(
+        android: _resumenAndroid(cuerpo),
+        iOS: const DarwinNotificationDetails(),
+      ),
+    );
+  }
+
+  /// Activa o apaga el resumen. Al activarlo hacen falta las notificaciones:
+  /// se pide el permiso si todavía no estaban activas.
+  Future<bool> setResumenSemanal(bool value) async {
+    if (!_ready) return false;
+    if (value && !enabled && !await setEnabled(true)) return false;
+    resumenSemanalEnabled = value;
+    try {
+      await _storage.write(key: _resumenKey, value: '$value');
+    } catch (_) {
+      // El cambio ya se aplicó en memoria aunque no persista
+    }
+    if (!value) await _plugin.cancel(id: _resumenId);
+    return true;
   }
 
   Future<void> hideQuickRecord() async {
@@ -411,6 +694,29 @@ class QuickRecordEnabledNotifier extends StateNotifier<bool> {
   Future<bool> setEnabled(bool enabled) async {
     final ok = await NotificationService.instance.setQuickRecord(enabled);
     state = NotificationService.instance.quickRecordEnabled;
+    return ok;
+  }
+}
+
+final resumenSemanalEnabledProvider =
+    StateNotifierProvider<ResumenSemanalEnabledNotifier, bool>(
+      (ref) => ResumenSemanalEnabledNotifier(),
+    );
+
+class ResumenSemanalEnabledNotifier extends StateNotifier<bool> {
+  ResumenSemanalEnabledNotifier()
+    : super(
+        NotificationService.instance.enabled &&
+            NotificationService.instance.resumenSemanalEnabled,
+      );
+
+  /// Al activar se pide el permiso del sistema si hace falta; si lo niega
+  /// queda apagado.
+  Future<bool> setEnabled(bool enabled) async {
+    final ok = await NotificationService.instance.setResumenSemanal(enabled);
+    state =
+        NotificationService.instance.enabled &&
+        NotificationService.instance.resumenSemanalEnabled;
     return ok;
   }
 }

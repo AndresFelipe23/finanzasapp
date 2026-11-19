@@ -89,8 +89,8 @@ class ExportService {
   ) async {
     double ingresos = 0, gastos = 0;
     for (final t in items) {
-      if (t.tipoNombre == 'INGRESO') ingresos += t.monto;
-      if (t.tipoNombre == 'GASTO') gastos += t.monto;
+      if (t.esIngreso) ingresos += t.monto;
+      if (t.esGasto) gastos += t.monto;
     }
 
     // Paleta del diseño: verde de la marca, naranja para gastos, tinta oscura
